@@ -29,7 +29,10 @@ fn main() {
         cli.command
     };
 
+    let chdir = cli.working_directory.map(|wd| format!("--chdir={}", wd));
+
     let status = Command::new("run0")
+        .args(chdir.iter())
         .args(command.iter())
         .spawn()
         .unwrap()

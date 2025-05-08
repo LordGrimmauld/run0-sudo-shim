@@ -21,9 +21,9 @@ pub struct Cli {
     #[clap(long = "close-from", short = 'C')]
     pub file_descriptor_limit: Option<u32>,
 
-    /// [IGNORED] change the working directory before running command
-    #[clap(long = "chdir", short = 'D', default_value_t = false)]
-    pub working_directory: bool,
+    /// change the working directory before running command
+    #[clap(long = "chdir", short = 'D')]
+    pub working_directory: Option<String>,
 
     /// [IGNORED] preserve user environment when running command
     #[clap(long, short = 'E', default_value_t = false)]
