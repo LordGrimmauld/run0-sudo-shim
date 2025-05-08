@@ -61,7 +61,7 @@ pub struct Cli {
     #[clap(long, short = 'l', action = ArgAction::Count)]
     pub list: u8,
 
-    /// [IGNORED] non-interactive mode, no prompts are used
+    /// non-interactive mode, no prompts are used
     #[clap(long, short, default_value_t = false)]
     pub non_interactive: bool,
 

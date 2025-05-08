@@ -31,8 +31,15 @@ fn main() {
 
     let chdir = cli.working_directory.map(|wd| format!("--chdir={}", wd));
 
+    let non_interactive = if cli.non_interactive {
+        Some("--no-ask-password")
+    } else {
+        None
+    };
+
     let status = Command::new("run0")
         .args(chdir.iter())
+        .args(non_interactive.iter())
         .args(command.iter())
         .spawn()
         .unwrap()
