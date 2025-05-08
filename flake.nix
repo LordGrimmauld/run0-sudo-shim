@@ -66,6 +66,7 @@
           devShells.default = pkgs.mkShell {
             buildInputs = [
               rustToolchain
+              pkgs.rust-analyzer
             ];
           };
 
