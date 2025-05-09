@@ -45,9 +45,9 @@ pub struct Cli {
     #[clap(long, default_value_t = false)]
     pub host: bool,
 
-    /// [IGNORED] run login shell as the target user; a command may also be specified
-    #[clap(long, short = 'i')]
-    pub login: Option<Option<String>>,
+    /// run login shell as the target user; a command may also be specified
+    #[clap(long, short = 'i', default_value_t = false)]
+    pub login: bool,
 
     /// [IGNORED] remove timestamp file completely
     #[clap(long, short = 'K', default_value_t = false)]

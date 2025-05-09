@@ -58,6 +58,12 @@ fn main() {
         Vec::new()
     };
 
+    if command.is_empty() && !cli.login {
+        let mut cmd = clap::Command::new(env!("CARGO_PKG_NAME"));
+        cmd.print_help().ok();
+        exit(0);
+    }
+
     if cli.bell && !cli.non_interactive {
         print!("\x07");
     }
