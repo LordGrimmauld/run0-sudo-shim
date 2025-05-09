@@ -37,6 +37,9 @@ fn main() {
         None
     };
 
+    let group = cli.group.map(|g| format!("--group={}", g));
+    let user = cli.user.map(|u| format!("--user={}", u));
+
     if cli.bell {
         print!("\x07");
     }
@@ -44,6 +47,8 @@ fn main() {
     let status = Command::new("run0")
         .args(chdir.iter())
         .args(non_interactive.iter())
+        .args(group.iter())
+        .args(user.iter())
         .args(command.iter())
         .spawn()
         .unwrap()

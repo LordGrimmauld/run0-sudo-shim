@@ -33,7 +33,7 @@ pub struct Cli {
     #[clap(long, short, default_value_t = false)]
     pub edit: bool,
 
-    /// [IGNORED] run command as the specified group name or ID
+    /// run command as the specified group name or ID
     #[clap(long, short)]
     pub group: Option<String>,
 
@@ -93,7 +93,7 @@ pub struct Cli {
     #[clap(long, short = 'U')]
     pub other_user: Option<String>,
 
-    /// [IGNORED] run command (or edit file) as specified user name or ID
+    /// run command (or edit file) as specified user name or ID
     #[clap(long, short)]
     pub user: Option<String>,
 
