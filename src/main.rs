@@ -40,8 +40,12 @@ fn main() {
         None
     };
 
-    let group = cli.group.map(|g| format!("--group={}", g));
-    let user = cli.user.map(|u| format!("--user={}", u));
+    let group = cli
+        .group
+        .map(|g| format!("--group={}", g.trim_start_matches('#')));
+    let user = cli
+        .user
+        .map(|u| format!("--user={}", u.trim_start_matches('#')));
 
     let env_flags = if let Some(vars) = cli.preserve_env {
         let vars = if vars.is_empty() {
