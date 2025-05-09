@@ -25,9 +25,9 @@ pub struct Cli {
     #[clap(long = "chdir", short = 'D')]
     pub working_directory: Option<String>,
 
-    /// [IGNORED] preserve user environment when running command
-    #[clap(long, short = 'E', default_value_t = false)]
-    pub preserve_env: bool, // TODO: bool OR Vec<String>
+    /// preserve user environment when running command
+    #[clap(long, short = 'E')]
+    pub preserve_env: Option<Option<String>>,
 
     /// [UNSUPPORTED] edit files instead of running a command
     #[clap(long, short, default_value_t = false)]

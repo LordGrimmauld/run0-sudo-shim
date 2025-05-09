@@ -1,5 +1,8 @@
 mod args;
-use std::process::{Command, exit};
+use std::{
+    env,
+    process::{Command, exit},
+};
 
 use crate::args::Cli;
 use clap::Parser;
@@ -40,7 +43,22 @@ fn main() {
     let group = cli.group.map(|g| format!("--group={}", g));
     let user = cli.user.map(|u| format!("--user={}", u));
 
-    if cli.bell {
+    let env_flags = if let Some(env) = cli.preserve_env {
+        let vars: Vec<String> = if let Some(v) = env {
+            v.split(',').map(str::to_string).collect()
+        } else {
+            env::vars().map(|(key, _)| key).collect()
+        };
+
+        vars.iter()
+            .filter(|e| !(cli.set_home && *e == "HOME") && !e.is_empty())
+            .map(|e| format!("--setenv={}", e))
+            .collect()
+    } else {
+        Vec::new()
+    };
+
+    if cli.bell && !cli.non_interactive {
         print!("\x07");
     }
 
@@ -49,7 +67,8 @@ fn main() {
         .args(non_interactive.iter())
         .args(group.iter())
         .args(user.iter())
-        .args(command.iter())
+        .args(env_flags)
+        .args(command)
         .spawn()
         .unwrap()
         .wait()
