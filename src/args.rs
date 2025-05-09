@@ -27,7 +27,7 @@ pub struct Cli {
 
     /// preserve user environment when running command
     #[clap(long, short = 'E')]
-    pub preserve_env: Option<Option<String>>,
+    pub preserve_env: Vec<Option<String>>,
 
     /// [UNSUPPORTED] edit files instead of running a command
     #[clap(long, short, default_value_t = false)]

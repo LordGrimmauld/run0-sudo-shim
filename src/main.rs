@@ -43,15 +43,22 @@ fn main() {
     let group = cli.group.map(|g| format!("--group={}", g));
     let user = cli.user.map(|u| format!("--user={}", u));
 
-    let env_flags = if let Some(env) = cli.preserve_env {
-        let vars: Vec<String> = if let Some(v) = env {
-            v.split(',').map(str::to_string).collect()
-        } else {
+    let env_flags = if !cli.preserve_env.is_empty() {
+        let vars: Vec<String> = cli
+            .preserve_env
+            .into_iter()
+            .flat_map(Option::into_iter)
+            .flat_map(|v| v.split(',').map(str::to_string).collect::<Vec<String>>())
+            .filter(|s| !s.is_empty())
+            .collect();
+        let vars = if vars.is_empty() {
             env::vars().map(|(key, _)| key).collect()
+        } else {
+            vars
         };
 
         vars.iter()
-            .filter(|e| !(cli.set_home && *e == "HOME") && !e.is_empty())
+            .filter(|e| !(cli.set_home && *e == "HOME"))
             .map(|e| format!("--setenv={}", e))
             .collect()
     } else {
