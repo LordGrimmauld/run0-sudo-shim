@@ -37,7 +37,7 @@ pub struct Cli {
     #[clap(long, short)]
     pub group: Option<String>,
 
-    /// [IGNORED] set HOME variable to target user's home dir
+    /// set HOME variable to target user's home dir
     #[clap(long, short = 'H', default_value_t = false)]
     pub set_home: bool,
 
