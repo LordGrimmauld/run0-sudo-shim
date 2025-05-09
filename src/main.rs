@@ -37,6 +37,10 @@ fn main() {
         None
     };
 
+    if cli.bell {
+        print!("\x07");
+    }
+
     let status = Command::new("run0")
         .args(chdir.iter())
         .args(non_interactive.iter())

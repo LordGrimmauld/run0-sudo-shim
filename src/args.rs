@@ -13,7 +13,7 @@ pub struct Cli {
     #[clap(long, short, default_value_t = false)]
     pub background: bool,
 
-    /// [IGNORED] ring bell when prompting
+    /// ring bell when prompting
     #[clap(long, short = 'B', default_value_t = false)]
     pub bell: bool,
 
