@@ -42,10 +42,16 @@
           inherit (cargo-toml) version;
           src = lib.cleanSource ./.;
           cargoLock.lockFile = ./Cargo.lock;
+
+          postInstall = ''
+            ln -s $out/bin/${name} $out/bin/sudo
+          '';
+
           meta = {
             inherit (cargo-toml) description;
             mainProgram = name;
             license = lib.getLicenseFromSpdxId cargo-toml.license;
+            maintainers = with lib.maintainers; [ grimmauld ];
           };
         };
 
