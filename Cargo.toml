@@ -3,7 +3,7 @@ clap = {version = "4.5.4", features = ["derive"]}
 
 [package]
 name = "run0-sudo-shim"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 description = "Shim for the sudo command that utilizes run0"
 license = "BSD-3-Clause"
