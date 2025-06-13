@@ -17,7 +17,7 @@ pub struct Cli {
     #[clap(long, short = 'B', default_value_t = false)]
     pub bell: bool,
 
-    /// [IGNORED] close all file descriptors >= num
+    /// diverging from sudo, this sets NOFILE limit, achieving similar behavior as sudo explicitly watching and killing file descriptors
     #[clap(long = "close-from", short = 'C')]
     pub file_descriptor_limit: Option<u32>,
 

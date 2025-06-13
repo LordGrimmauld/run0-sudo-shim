@@ -62,6 +62,10 @@ fn main() {
         Vec::new()
     };
 
+    let nofile = cli
+        .file_descriptor_limit
+        .map(|limit_nofile| format!("--property=LimitNOFILE={}", limit_nofile));
+
     if command.is_empty() && !cli.login {
         let mut cmd = clap::Command::new(env!("CARGO_PKG_NAME"));
         cmd.print_help().ok();
@@ -77,6 +81,7 @@ fn main() {
         .args(non_interactive.iter())
         .args(group.iter())
         .args(user.iter())
+        .args(nofile.iter())
         .args(env_flags)
         .args(command)
         .spawn()
