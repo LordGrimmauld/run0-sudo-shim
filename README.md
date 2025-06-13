@@ -67,3 +67,26 @@ Options:
   -V, --version
           Print version
 ```
+
+#### Installation as a Flake
+
+Put in your inputs:
+
+```nix
+    run0-sudo-shim = {
+      url = "github:lordgrimmauld/run0-sudo-shim";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+```
+
+Put in your modules:
+
+```
+inputs.run0-sudo-shim.nixosModules.default
+```
+
+Put in your environment.systemPackages:
+
+```
+pkgs.run0-sudo-shim
+```
