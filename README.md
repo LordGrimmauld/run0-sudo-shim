@@ -21,7 +21,7 @@ Options:
   -B, --bell
           ring bell when prompting
   -C, --close-from <FILE_DESCRIPTOR_LIMIT>
-          [IGNORED] close all file descriptors >= num
+          diverging from sudo, this sets NOFILE limit, achieving similar behavior as sudo explicitly watching and killing file descriptors
   -D, --chdir <WORKING_DIRECTORY>
           change the working directory before running command
   -E, --preserve-env[=<PRESERVE_ENV>...]
@@ -73,20 +73,20 @@ Options:
 Put in your inputs:
 
 ```nix
-    run0-sudo-shim = {
-      url = "github:lordgrimmauld/run0-sudo-shim";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+run0-sudo-shim = {
+  url = "github:lordgrimmauld/run0-sudo-shim";
+  inputs.nixpkgs.follows = "nixpkgs";
+};
 ```
 
 Put in your modules:
 
-```
+```nix
 inputs.run0-sudo-shim.nixosModules.default
 ```
 
 Put in your environment.systemPackages:
 
-```
-pkgs.run0-sudo-shim
+```nix
+environment.systemPackages = [ pkgs.run0-sudo-shim ]
 ```
