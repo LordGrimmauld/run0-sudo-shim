@@ -1,6 +1,7 @@
 mod args;
 use std::{
     env,
+    os::unix::process::CommandExt,
     process::{Command, exit},
 };
 
@@ -76,7 +77,7 @@ fn main() {
         print!("\x07");
     }
 
-    let status = Command::new("run0")
+    let error = Command::new("run0")
         .args(chdir.iter())
         .args(non_interactive.iter())
         .args(group.iter())
@@ -84,9 +85,7 @@ fn main() {
         .args(nofile.iter())
         .args(env_flags)
         .args(command)
-        .spawn()
-        .unwrap()
-        .wait()
-        .unwrap();
-    exit(status.code().unwrap_or(0));
+        .exec();
+
+    panic!("{}", error);
 }
