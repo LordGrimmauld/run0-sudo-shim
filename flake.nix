@@ -86,7 +86,7 @@
               nodes.machine = {
                 imports = [ self.nixosModules.default ];
                 security.polkit.persistentAuthentication = true;
-                security.run0-sudo-shim = true;
+                security.run0-sudo-shim.enable = true;
 
                 users.users = {
                   admin = {
@@ -126,16 +126,17 @@
         {
           options.security = {
             polkit.persistentAuthentication = lib.mkEnableOption "patch polkit to allow persistent authentication and add rules";
-            run0-sudo-shim = lib.mkEnableOption "enable run0-sudo-shim instead of sudo";
+            run0-sudo-shim.enable = lib.mkEnableOption "enable run0-sudo-shim instead of sudo";
           };
 
           config = lib.mkMerge [
             {
               nixpkgs.overlays = [ self.overlays.default ];
             }
-            (lib.mkIf config.security.run0-sudo-shim {
+            (lib.mkIf config.security.run0-sudo-shim.enable {
               environment.systemPackages = [ pkgs.run0-sudo-shim ];
               security.sudo.enable = false;
+              security.polkit.enable = true;
             })
             (lib.mkIf config.security.polkit.persistentAuthentication {
               security.polkit.extraConfig = ''
