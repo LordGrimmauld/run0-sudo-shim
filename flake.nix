@@ -80,6 +80,29 @@
 
           checks = {
             formatting = treefmtEval.config.build.check self;
+            vm = pkgs.testers.runNixOSTest {
+              name = "run0-sudo-shim-vm-test";
+              node.pkgsReadOnly = false;
+              nodes.machine = {
+                imports = [ self.nixosModules.default ];
+                security.polkit.persistentAuthentication = true;
+                security.run0-sudo-shim = true;
+
+                users.users = {
+                  admin = {
+                    isNormalUser = true;
+                    extraGroups = [ "wheel" ];
+                  };
+                  noadmin = {
+                    isNormalUser = true;
+                  };
+                };
+              };
+              testScript = ''
+                # machine.succeed('su - admin -c "sudo -v"') # can't yet give password, needs hacks to never ask for password in the test or enter the password
+                machine.fail('su - noadmin -c "sudo -v"')
+              '';
+            };
           } // self.packages.${system};
         }
       );
