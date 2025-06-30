@@ -33,7 +33,7 @@ fn main() {
         cli.command
     };
 
-    let chdir = cli.working_directory.map(|wd| format!("--chdir={}", wd));
+    let chdir = cli.working_directory.map(|wd| format!("--chdir={wd}"));
 
     let non_interactive = if cli.non_interactive {
         Some("--no-ask-password")
@@ -57,7 +57,7 @@ fn main() {
 
         vars.iter()
             .filter(|e| !(cli.set_home && *e == "HOME"))
-            .map(|e| format!("--setenv={}", e))
+            .map(|e| format!("--setenv={e}"))
             .collect()
     } else {
         Vec::new()
@@ -65,7 +65,7 @@ fn main() {
 
     let nofile = cli
         .file_descriptor_limit
-        .map(|limit_nofile| format!("--property=LimitNOFILE={}", limit_nofile));
+        .map(|limit_nofile| format!("--property=LimitNOFILE={limit_nofile}"));
 
     if command.is_empty() && !cli.login {
         let mut cmd = clap::Command::new(env!("CARGO_PKG_NAME"));
