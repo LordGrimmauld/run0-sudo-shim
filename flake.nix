@@ -93,8 +93,71 @@
 
       overlays.default = final: prev: { ${name} = build-pkg prev; };
 
-      nixosModules.default = {
-        nixpkgs.overlays = [ self.overlays.default ];
-      };
+      nixosModules.default =
+        {
+          pkgs,
+          lib,
+          config,
+          ...
+        }:
+        {
+          options.security = {
+            polkit.persistentAuthentication = lib.mkEnableOption "patch polkit to allow persistent authentication and add rules";
+            run0-sudo-shim = lib.mkEnableOption "enable run0-sudo-shim instead of sudo";
+          };
+
+          config = lib.mkMerge [
+            {
+              nixpkgs.overlays = [ self.overlays.default ];
+            }
+            (lib.mkIf config.security.run0-sudo-shim {
+              environment.systemPackages = [ pkgs.run0-sudo-shim ];
+              security.sudo.enable = false;
+            })
+            (lib.mkIf config.security.polkit.persistentAuthentication {
+              security.polkit.extraConfig = ''
+                polkit.addRule(function(action, subject) {
+                  if (action.id == "org.freedesktop.policykit.exec") {
+                    return polkit.Result.AUTH_ADMIN_KEEP;
+                  }
+                });
+
+                polkit.addRule(function(action, subject) {
+                  if (action.id.indexOf("org.freedesktop.systemd1.") == 0) {
+                    return polkit.Result.AUTH_ADMIN_KEEP;
+                  }
+                });
+              '';
+
+              # replaceDependencies to avoid mass rebuild
+              system.replaceDependencies.replacements =
+                let
+                  polkit' = pkgs.polkit.overrideAttrs (old: {
+                    patches = old.patches or [ ] ++ [
+                      (pkgs.fetchpatch {
+                        url = "https://github.com/polkit-org/polkit/pull/533.patch?full_index=1";
+                        hash = "sha256-i8RkHDGdSwO6/kueVhMVefqUqC38lQmEBSKtminDlN8=";
+                      })
+                    ];
+                  });
+                in
+                builtins.concatMap
+                  (
+                    { oldDependency, newDependency }:
+                    assert oldDependency.outputs == newDependency.outputs;
+                    builtins.map (out: {
+                      oldDependency = oldDependency.${out};
+                      newDependency = newDependency.${out};
+                    }) oldDependency.outputs
+                  )
+                  (
+                    lib.singleton {
+                      oldDependency = pkgs.polkit;
+                      newDependency = polkit';
+                    }
+                  );
+            })
+          ];
+        };
     };
 }
