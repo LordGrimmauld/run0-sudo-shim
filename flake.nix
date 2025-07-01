@@ -137,6 +137,9 @@
               environment.systemPackages = [ pkgs.run0-sudo-shim ];
               security.sudo.enable = false;
               security.polkit.enable = true;
+
+              # https://github.com/NixOS/nixpkgs/pull/419588
+              security.pam.services.systemd-run0 = { };
             })
             (lib.mkIf config.security.polkit.persistentAuthentication {
               security.polkit.extraConfig = ''
@@ -153,33 +156,14 @@
                 });
               '';
 
-              # replaceDependencies to avoid mass rebuild
-              system.replaceDependencies.replacements =
-                let
-                  polkit' = pkgs.polkit.overrideAttrs (old: {
-                    patches = old.patches or [ ] ++ [
-                      (pkgs.fetchpatch {
-                        url = "https://github.com/polkit-org/polkit/pull/533.patch?full_index=1";
-                        hash = "sha256-i8RkHDGdSwO6/kueVhMVefqUqC38lQmEBSKtminDlN8=";
-                      })
-                    ];
-                  });
-                in
-                builtins.concatMap
-                  (
-                    { oldDependency, newDependency }:
-                    assert oldDependency.outputs == newDependency.outputs;
-                    builtins.map (out: {
-                      oldDependency = oldDependency.${out};
-                      newDependency = newDependency.${out};
-                    }) oldDependency.outputs
-                  )
-                  (
-                    lib.singleton {
-                      oldDependency = pkgs.polkit;
-                      newDependency = polkit';
-                    }
-                  );
+              security.polkit.package = pkgs.polkit.overrideAttrs (old: {
+                patches = old.patches or [ ] ++ [
+                  (pkgs.fetchpatch {
+                    url = "https://github.com/polkit-org/polkit/pull/533.patch?full_index=1";
+                    hash = "sha256-i8RkHDGdSwO6/kueVhMVefqUqC38lQmEBSKtminDlN8=";
+                  })
+                ];
+              });
             })
           ];
         };
