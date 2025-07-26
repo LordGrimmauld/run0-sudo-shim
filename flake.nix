@@ -139,7 +139,10 @@
               security.polkit.enable = true;
 
               # https://github.com/NixOS/nixpkgs/pull/419588
-              security.pam.services.systemd-run0 = { };
+              security.pam.services.systemd-run0 = {
+                setLoginUid = true;
+                pamMount = false;
+              };
             })
             (lib.mkIf config.security.polkit.persistentAuthentication {
               security.polkit.extraConfig = ''
