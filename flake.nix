@@ -124,18 +124,24 @@
           config,
           ...
         }:
+        let
+          cfg = config.security.run0-sudo-shim;
+        in
         {
           options.security = {
             polkit.persistentAuthentication = lib.mkEnableOption "patch polkit to allow persistent authentication and add rules";
-            run0-sudo-shim.enable = lib.mkEnableOption "enable run0-sudo-shim instead of sudo";
+            run0-sudo-shim = {
+              enable = lib.mkEnableOption "enable run0-sudo-shim instead of sudo";
+              package = lib.mkPackageOption pkgs "run0-sudo-shim" { } // {
+                # should be removed when upstreaming to nixpkgs
+                default = pkgs.run0-sudo-shim or build-pkg pkgs;
+              };
+            };
           };
 
           config = lib.mkMerge [
-            {
-              nixpkgs.overlays = [ self.overlays.default ];
-            }
-            (lib.mkIf config.security.run0-sudo-shim.enable {
-              environment.systemPackages = [ pkgs.run0-sudo-shim ];
+            (lib.mkIf cfg.enable {
+              environment.systemPackages = [ cfg.package ];
               security.sudo.enable = false;
               security.polkit.enable = true;
 
