@@ -103,7 +103,8 @@
                 machine.fail('su - noadmin -c "sudo -v"')
               '';
             };
-          } // self.packages.${system};
+          }
+          // self.packages.${system};
         }
       );
     in
@@ -159,14 +160,17 @@
                 });
               '';
 
-              security.polkit.package = pkgs.polkit.overrideAttrs (old: {
-                patches = old.patches or [ ] ++ [
-                  (pkgs.fetchpatch {
-                    url = "https://github.com/polkit-org/polkit/pull/533.patch?full_index=1";
-                    hash = "sha256-i8RkHDGdSwO6/kueVhMVefqUqC38lQmEBSKtminDlN8=";
-                  })
-                ];
-              });
+              # don't apply patch starting version 127, where persistent auth is supported upstream
+              security.polkit.package = lib.mkIf (lib.versionOlder pkgs.polkit.version "127") (
+                pkgs.polkit.overrideAttrs (old: {
+                  patches = old.patches or [ ] ++ [
+                    (pkgs.fetchpatch {
+                      url = "https://github.com/polkit-org/polkit/pull/533.patch?full_index=1";
+                      hash = "sha256-i8RkHDGdSwO6/kueVhMVefqUqC38lQmEBSKtminDlN8=";
+                    })
+                  ];
+                })
+              );
             })
           ];
         };
