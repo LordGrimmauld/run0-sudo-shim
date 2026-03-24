@@ -48,7 +48,6 @@
         {
           lib,
           rustPlatform,
-          ...
         }:
         rustPlatform.buildRustPackage {
           inherit name;
