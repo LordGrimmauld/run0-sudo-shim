@@ -3,11 +3,6 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable-small";
-    flake-utils.url = "github:numtide/flake-utils";
-    rust-overlay = {
-      url = "github:oxalica/rust-overlay";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
     nix-github-actions = {
       url = "github:nix-community/nix-github-actions";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -22,22 +17,40 @@
     {
       self,
       nixpkgs,
-      flake-utils,
-      rust-overlay,
       nix-github-actions,
       treefmt-nix,
       ...
     }:
     let
-      cargo-toml = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).package;
+      inherit (nixpkgs) lib;
+      cargo-toml = (lib.importTOML ./Cargo.toml).package;
       inherit (cargo-toml) name;
+      forEachSystem =
+        f:
+        builtins.listToAttrs (
+          map
+            (system: {
+              name = system;
+              value = f {
+                inherit system;
+                pkgs = nixpkgs.legacyPackages.${system};
+              };
+            })
+            [
+              "x86_64-linux"
+              "x86_64-darwin"
+              "aarch64-linux"
+              "aarch64-darwin"
+            ]
+        );
 
-      build-pkg =
-        pkgs:
-        let
-          inherit (pkgs) lib;
-        in
-        pkgs.rustPlatform.buildRustPackage {
+      package =
+        {
+          lib,
+          rustPlatform,
+          ...
+        }:
+        rustPlatform.buildRustPackage {
           inherit name;
           inherit (cargo-toml) version;
           src = lib.cleanSource ./.;
@@ -55,66 +68,70 @@
           };
         };
 
-      outputs = flake-utils.lib.eachDefaultSystem (
-        system:
-        let
-          overlays = [ (import rust-overlay) ];
-          pkgs = import nixpkgs {
-            inherit system overlays;
-          };
-          rustToolchain = pkgs.pkgsBuildHost.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
-          treefmtEval = treefmt-nix.lib.evalModule pkgs ./treefmt.nix;
-        in
+      treefmtEval = (lib.flip treefmt-nix.lib.evalModule) ./treefmt.nix;
+    in
+    {
+      packages = forEachSystem (
+        { pkgs, system }:
         {
-          packages.${name} = build-pkg pkgs;
-          packages.default = self.packages.${system}.${name};
-
-          devShells.default = pkgs.mkShell {
-            buildInputs = [
-              rustToolchain
-              pkgs.rust-analyzer
-            ];
-          };
-
-          formatter = treefmtEval.config.build.wrapper;
-
-          checks = {
-            formatting = treefmtEval.config.build.check self;
-            vm = pkgs.testers.runNixOSTest {
-              name = "run0-sudo-shim-vm-test";
-              nodes.machine = {
-                imports = [ self.nixosModules.default ];
-                security.polkit.persistentAuthentication = true;
-                security.run0-sudo-shim.enable = true;
-
-                users.users = {
-                  admin = {
-                    isNormalUser = true;
-                    extraGroups = [ "wheel" ];
-                  };
-                  noadmin = {
-                    isNormalUser = true;
-                  };
-                };
-              };
-              testScript = ''
-                # machine.succeed('su - admin -c "sudo -v"') # can't yet give password, needs hacks to never ask for password in the test or enter the password
-                machine.fail('su - noadmin -c "sudo -v"')
-              '';
-            };
-          }
-          // self.packages.${system};
+          ${name} = pkgs.callPackage package { };
+          default = self.packages.${system}.${name};
         }
       );
-    in
-    outputs
-    // {
 
+      devShells = forEachSystem (
+        { pkgs, system }:
+        {
+          default = pkgs.mkShell {
+            inputsFrom = [ self.packages.${system}.default ];
+            packages = [
+              pkgs.clippy
+              pkgs.rust-analyzer
+              pkgs.rustfmt
+            ];
+          };
+        }
+      );
+
+      formatter = forEachSystem ({ pkgs, ... }: (treefmtEval pkgs).config.build.wrapper);
+
+      checks = forEachSystem (
+        { pkgs, system }:
+        {
+          formatting = (treefmtEval pkgs).config.build.check self;
+          vm = pkgs.testers.runNixOSTest {
+            name = "run0-sudo-shim-vm-test";
+            nodes.machine = {
+              imports = [ self.nixosModules.default ];
+              services.dbus.implementation = "broker";
+              security = {
+                polkit.persistentAuthentication = true;
+                run0-sudo-shim.enable = true;
+              };
+
+              users.users = {
+                admin = {
+                  isNormalUser = true;
+                  extraGroups = [ "wheel" ];
+                };
+                noadmin = {
+                  isNormalUser = true;
+                };
+              };
+            };
+            testScript = ''
+              # machine.succeed('su - admin -c "sudo -v"') # can't yet give password, needs hacks to never ask for password in the test or enter the password
+              machine.fail('su - noadmin -c "sudo -v"')
+            '';
+          };
+        }
+        // self.packages.${system}
+      );
       githubActions = nix-github-actions.lib.mkGithubMatrix {
-        checks = nixpkgs.lib.getAttrs [ "x86_64-linux" ] outputs.checks;
+        checks = { inherit (self.checks) x86_64-linux; };
       };
 
-      overlays.default = final: prev: { ${name} = build-pkg prev; };
+      overlays.default = final: _: { ${name} = final.callPackage package { }; };
 
       nixosModules.default =
         {
@@ -128,12 +145,12 @@
         in
         {
           options.security = {
-            polkit.persistentAuthentication = lib.mkEnableOption "patch polkit to allow persistent authentication and add rules";
+            polkit.persistentAuthentication = lib.mkEnableOption "patching polkit to allow persistent authentication and adding rules";
             run0-sudo-shim = {
-              enable = lib.mkEnableOption "enable run0-sudo-shim instead of sudo";
+              enable = lib.mkEnableOption "run0-sudo-shim instead of sudo";
               package = lib.mkPackageOption pkgs "run0-sudo-shim" { } // {
                 # should be removed when upstreaming to nixpkgs
-                default = pkgs.run0-sudo-shim or build-pkg pkgs;
+                default = pkgs.run0-sudo-shim or self.packages.${pkgs.stdenv.system}.default;
               };
             };
           };
@@ -143,23 +160,15 @@
               environment.systemPackages = [ cfg.package ];
               security.sudo.enable = false;
               security.polkit.enable = true;
-
-              # https://github.com/NixOS/nixpkgs/pull/419588
-              security.pam.services.systemd-run0 = {
-                setLoginUid = true;
-                pamMount = false;
-              };
             })
             (lib.mkIf config.security.polkit.persistentAuthentication {
               assertions =
                 let
-                  mkMessage = (
-                    package: minVer: ''
-                      To provide persistent authentication, Polkit requires `pidfd` support when fetching process details from D-Bus, which is only available in `${package}` version ${minVer} or later.
+                  mkMessage = package: minVer: ''
+                    To provide persistent authentication, Polkit requires `pidfd` support when fetching process details from D-Bus, which is only available in `${package}` version ${minVer} or later.
 
-                      Please update the package or switch `services.dbus.implementation` in the configuration.
-                    ''
-                  );
+                    Please update the package or switch `services.dbus.implementation` in the configuration.
+                  '';
                 in
                 [
                   (lib.mkIf (config.services.dbus.implementation == "dbus") {
@@ -174,14 +183,9 @@
 
               security.polkit.extraConfig = ''
                 polkit.addRule(function(action, subject) {
-                  if (action.id == "org.freedesktop.policykit.exec") {
-                    return polkit.Result.AUTH_ADMIN_KEEP;
-                  }
-                });
-
-                polkit.addRule(function(action, subject) {
-                  if (action.id.indexOf("org.freedesktop.systemd1.") == 0) {
-                    return polkit.Result.AUTH_ADMIN_KEEP;
+                  if (action.id == "org.freedesktop.policykit.exec" ||
+                      action.id.indexOf("org.freedesktop.systemd1.") {
+                      return polkit.Result.AUTH_ADMIN_KEEP;
                   }
                 });
               '';
