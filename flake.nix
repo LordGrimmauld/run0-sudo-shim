@@ -183,7 +183,7 @@
               security.polkit.extraConfig = ''
                 polkit.addRule(function(action, subject) {
                   if (action.id == "org.freedesktop.policykit.exec" ||
-                      action.id.indexOf("org.freedesktop.systemd1.") {
+                      action.id.indexOf("org.freedesktop.systemd1.") == 0) {
                       return polkit.Result.AUTH_ADMIN_KEEP;
                   }
                 });
