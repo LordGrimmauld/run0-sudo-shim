@@ -67,6 +67,8 @@ fn main() {
         .file_descriptor_limit
         .map(|limit_nofile| format!("--property=LimitNOFILE={limit_nofile}"));
 
+    let run0_extra_args = cli.run0_extra_args;
+
     if command.is_empty() && !cli.login {
         let mut cmd = clap::Command::new(env!("CARGO_PKG_NAME"));
         cmd.print_help().ok();
@@ -84,6 +86,7 @@ fn main() {
         .args(user.iter())
         .args(nofile.iter())
         .args(env_flags)
+        .args(run0_extra_args.iter())
         .args(command)
         .exec();
 

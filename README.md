@@ -62,6 +62,8 @@ Options:
           run command (or edit file) as specified user name or ID
   -v, --validate
           validate a root login
+      --run0-extra-arg <RUN0_EXTRA_ARGS>
+          an extra argument to pass to run0 (can be specified multiple times)
   -h, --help
           Print help
   -V, --version

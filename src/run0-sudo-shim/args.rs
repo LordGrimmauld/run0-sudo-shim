@@ -101,6 +101,10 @@ pub struct Cli {
     #[clap(long, short = 'v', default_value_t = false)]
     pub validate: bool,
 
+    /// an extra argument to pass to run0 (can be specified multiple times)
+    #[clap(long = "run0-extra-arg", allow_hyphen_values = true)]
+    pub run0_extra_args: Vec<String>,
+
     /// command to be executed
     #[arg(last(false), allow_hyphen_values = true)]
     pub command: Vec<String>,
