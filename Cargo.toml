@@ -3,7 +3,6 @@ name = "run0-sudo-shim"
 path = "src/run0-sudo-shim/main.rs"
 
 [dependencies]
-clap = {version = "4.5.4", features = ["derive"]}
 
 [package]
 name = "run0-sudo-shim"

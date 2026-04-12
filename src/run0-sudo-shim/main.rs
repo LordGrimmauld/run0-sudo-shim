@@ -5,8 +5,7 @@ use std::{
     process::{Command, exit},
 };
 
-use crate::args::Cli;
-use clap::Parser;
+use crate::args::{Cli, print_help};
 
 fn main() {
     let cli = Cli::parse();
@@ -70,8 +69,7 @@ fn main() {
     let run0_extra_args = cli.run0_extra_args;
 
     if command.is_empty() && !cli.login {
-        let mut cmd = clap::Command::new(env!("CARGO_PKG_NAME"));
-        cmd.print_help().ok();
+        print_help();
         exit(0);
     }
 
