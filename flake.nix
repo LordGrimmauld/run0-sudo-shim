@@ -132,19 +132,27 @@
                 run0-sudo-shim.enable = true;
               };
 
+              # environment.systemPackages = [
+              #   polkit-stdin-agent.packages."${system}".polkit-stdin-agent
+              # ];
+
               users.users = {
                 admin = {
                   isNormalUser = true;
                   extraGroups = [ "wheel" ];
+                  password = "1234";
                 };
                 noadmin = {
                   isNormalUser = true;
+                  password = "4321";
                 };
               };
             };
             testScript = ''
-              # machine.succeed('su - admin -c "sudo -v"') # can't yet give password, needs hacks to never ask for password in the test or enter the password
-              machine.fail('su - noadmin -c "sudo -v"')
+              machine.succeed('sudo -v')
+              # machine.succeed('su - admin -c "echo 1234 | polkit-stdin-agent -v --password-fd=0 -- run0 true"')
+              machine.succeed('su - admin -c "echo 1234 | sudo --stdin -v"')
+              machine.fail('su - noadmin -c "echo 4321 | sudo --stdin -v"')
             '';
           };
         }
