@@ -3,6 +3,10 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable-small";
+    polkit-stdin-agent = {
+      url = "git+https://codeberg.org/r-vdp/polkit-stdin-agent";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     nix-github-actions = {
       url = "github:nix-community/nix-github-actions";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -19,6 +23,7 @@
       nixpkgs,
       nix-github-actions,
       treefmt-nix,
+      polkit-stdin-agent,
       ...
     }:
     let
@@ -97,6 +102,7 @@
               pkgs.clippy
               pkgs.rust-analyzer
               pkgs.rustfmt
+              polkit-stdin-agent.packages."${system}".polkit-stdin-agent
             ];
           };
         }
