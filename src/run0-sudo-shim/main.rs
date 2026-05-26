@@ -87,6 +87,7 @@ fn main() {
         .args(nofile.iter())
         .args(env_flags)
         .args(run0_extra_args.iter())
+        .arg("--")
         .args(command)
         .exec();
 
