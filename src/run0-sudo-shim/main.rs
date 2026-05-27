@@ -111,7 +111,7 @@ fn main() {
     if command.is_empty() && !cli.login && !cli.shell {
         let mut cmd = clap::Command::new(env!("CARGO_PKG_NAME"));
         cmd.print_help().ok();
-        exit(0);
+        exit(1);
     }
 
     if cli.bell && !cli.non_interactive {
