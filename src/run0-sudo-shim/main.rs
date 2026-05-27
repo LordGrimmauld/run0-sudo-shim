@@ -106,6 +106,10 @@ fn main() {
         .file_descriptor_limit
         .map(|limit_nofile| format!("--property=LimitNOFILE={limit_nofile}"));
 
+    let runtime_max = cli
+        .command_timeout
+        .map(|timeout_secs| format!("--property=RuntimeMaxSec={timeout_secs}"));
+
     let run0_extra_args = cli.run0_extra_args;
 
     if command.is_empty() && !cli.login && !cli.shell {
@@ -125,6 +129,7 @@ fn main() {
         .args(group.iter())
         .args(user.iter())
         .args(nofile.iter())
+        .args(runtime_max.iter())
         .args(env_flags)
         .args(run0_extra_args.iter())
         .arg("--")

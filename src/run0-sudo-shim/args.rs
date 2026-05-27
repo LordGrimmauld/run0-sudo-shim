@@ -85,7 +85,7 @@ pub struct Cli {
     #[clap(long, short, default_value_t = false)]
     pub shell: bool,
 
-    /// [IGNORED] terminate command after the specified time limit
+    /// terminate command after the specified time limit
     #[clap(long, short = 'T')]
     pub command_timeout: Option<String>,
 
