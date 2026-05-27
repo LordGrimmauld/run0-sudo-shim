@@ -60,13 +60,21 @@ fn main() {
         cli.command
     };
 
-    let shell = if cli.shell { Some("--via-shell") } else { None };
+    let shell = if cli.shell || cli.login {
+        Some("--via-shell")
+    } else {
+        None
+    };
 
     let chdir = cli
         .working_directory
-        .or(env::current_dir()
-            .map(|p| p.to_string_lossy().into_owned())
-            .ok())
+        .or(if cli.login {
+            Some(String::from("~"))
+        } else {
+            env::current_dir()
+                .map(|p| p.to_string_lossy().into_owned())
+                .ok()
+        })
         .map(|wd| format!("--chdir={wd}"));
 
     let non_interactive = if cli.non_interactive {
@@ -112,7 +120,7 @@ fn main() {
 
     let run0_extra_args = cli.run0_extra_args;
 
-    if command.is_empty() && !cli.login && !cli.shell {
+    if command.is_empty() && shell.is_none() {
         let mut cmd = clap::Command::new(env!("CARGO_PKG_NAME"));
         cmd.print_help().ok();
         exit(1);
