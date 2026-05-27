@@ -51,7 +51,7 @@ Options:
   -R, --chroot <CHROOT>
           [UNSUPPORTED] change the root directory before running command
   -S, --stdin
-          [UNSUPPORTED] read password from standard input
+          read password from standard input
   -s, --shell
           run shell as the target user; a command may also be specified
   -T, --command-timeout <COMMAND_TIMEOUT>
