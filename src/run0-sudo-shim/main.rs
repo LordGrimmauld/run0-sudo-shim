@@ -50,6 +50,10 @@ fn main() {
         die("removing or resetting authentication timestamps is currently unsupported")
     }
 
+    if cli.host.is_some() {
+        die("`host` is currently unsupported!")
+    }
+
     let command = if cli.validate {
         vec![String::from(TRUE_CMD)]
     } else {

@@ -41,9 +41,9 @@ pub struct Cli {
     #[clap(long, short = 'H', default_value_t = false)]
     pub set_home: bool,
 
-    /// [IGNORED] run command on host (if supported by plugin)
-    #[clap(long, default_value_t = false)]
-    pub host: bool,
+    /// [UNSUPPORTED] run command on host (if supported by plugin)
+    #[clap(long)]
+    pub host: Option<String>,
 
     /// run login shell as the target user; a command may also be specified
     #[clap(long, short = 'i', default_value_t = false)]
