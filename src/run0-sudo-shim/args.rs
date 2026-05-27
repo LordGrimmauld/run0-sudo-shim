@@ -9,7 +9,7 @@ pub struct Cli {
     #[clap(long, short = 'A', default_value_t = false)]
     pub askpass: bool,
 
-    /// [IGNORED] run command in the background
+    /// [UNSUPPORTED] run command in the background
     #[clap(long, short, default_value_t = false)]
     pub background: bool,
 
@@ -65,7 +65,7 @@ pub struct Cli {
     #[clap(long, short, default_value_t = false)]
     pub non_interactive: bool,
 
-    /// [IGNORED] preserve group vector instead of setting to target's
+    /// [UNSUPPORTED] preserve group vector instead of setting to target's
     #[clap(long, short = 'P', default_value_t = false)]
     pub preserve_groups: bool,
 

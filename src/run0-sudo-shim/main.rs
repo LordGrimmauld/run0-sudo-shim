@@ -54,6 +54,22 @@ fn main() {
         die("`host` is currently unsupported!")
     }
 
+    if cli.preserve_groups {
+        die("`preserve-groups` is currently unsupported!")
+    }
+
+    if cli.background {
+        die("`background` is currently unsupported!")
+    }
+
+    if cli.askpass {
+        eprintln!("run0-sudo-shim: --askpass is currently ignored");
+    }
+
+    if cli.prompt.is_some() {
+        eprintln!("run0-sudo-shim: --prompt is currently ignored");
+    }
+
     let command = if cli.validate {
         vec![String::from(TRUE_CMD)]
     } else {
