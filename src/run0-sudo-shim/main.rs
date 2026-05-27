@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: BSD-3-Clause
+
 mod args;
 use std::{
     env,
