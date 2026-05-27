@@ -8,6 +8,11 @@ use std::{
 use crate::args::Cli;
 use clap::Parser;
 
+static RUN0_CMD: &str = match option_env!("RUN0") {
+    Some(x) => x,
+    None => "run0",
+};
+
 fn main() {
     let cli = Cli::parse();
 
@@ -79,7 +84,7 @@ fn main() {
         print!("\x07");
     }
 
-    let error = Command::new("run0")
+    let error = Command::new(RUN0_CMD)
         .args(chdir.iter())
         .args(non_interactive.iter())
         .args(group.iter())
