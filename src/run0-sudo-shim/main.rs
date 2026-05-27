@@ -9,6 +9,7 @@ use std::{
 
 use crate::args::Cli;
 use clap::Parser;
+use users::get_current_uid;
 
 static RUN0_CMD: &str = match option_env!("RUN0") {
     Some(x) => x,
@@ -68,6 +69,11 @@ fn main() {
         .map(|g| format!("--group={}", g.trim_start_matches('#')));
     let user = cli
         .user
+        .or(if group.is_some() {
+            Some(get_current_uid().to_string())
+        } else {
+            None
+        })
         .map(|u| format!("--user={}", u.trim_start_matches('#')));
 
     let env_flags = if let Some(vars) = cli.preserve_env {
