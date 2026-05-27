@@ -55,6 +55,7 @@
           coreutils,
           lib,
           rustPlatform,
+          polkit-stdin-agent,
           systemd,
         }:
         rustPlatform.buildRustPackage {
@@ -67,6 +68,7 @@
           __structuredAttrs = true;
 
           env = {
+            POLKIT_STDIN_AGENT = lib.getExe polkit-stdin-agent;
             RUN0 = lib.getExe' systemd "run0";
             TRUE = lib.getExe' coreutils "true";
           };
@@ -89,7 +91,12 @@
       packages = forEachSystem (
         { pkgs, system }:
         {
-          ${name} = pkgs.callPackage package { };
+          # use polkit-stdin-agent from nixpkgs once available
+          # https://github.com/NixOS/nixpkgs/pull/512018
+          ${name} = pkgs.callPackage package {
+            polkit-stdin-agent =
+              pkgs.polkit-stdin-agent or polkit-stdin-agent.packages."${system}".polkit-stdin-agent;
+          };
           default = self.packages.${system}.${name};
         }
       );
@@ -147,7 +154,15 @@
         checks = { inherit (self.checks) x86_64-linux; };
       };
 
-      overlays.default = final: _: { ${name} = final.callPackage package { }; };
+      overlays.default = final: prev: {
+        ${name} = final.callPackage package {
+          # use polkit-stdin-agent from nixpkgs once available
+          # https://github.com/NixOS/nixpkgs/pull/512018
+          polkit-stdin-agent =
+            prev.polkit-stdin-agent
+              or polkit-stdin-agent.packages."${prev.stdenv.hostPlatform.system}".polkit-stdin-agent;
+        };
+      };
 
       nixosModules.default =
         {
