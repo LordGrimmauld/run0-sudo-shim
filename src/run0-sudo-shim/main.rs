@@ -20,23 +20,28 @@ static TRUE_CMD: &str = match option_env!("TRUE") {
     None => "true",
 };
 
+fn die(msg: &str) -> ! {
+    eprintln!("run0-sudo-shim: {msg}");
+    exit(1)
+}
+
 fn main() {
     let cli = Cli::parse();
 
     if cli.edit {
-        panic!("`edit` mode is currently unsupported!");
+        die("`edit` mode is currently unsupported!");
     }
 
     if cli.list > 0 || cli.other_user.is_some() {
-        panic!("`list` mode is currently unsupported!");
+        die("`list` mode is currently unsupported!");
     }
 
     if cli.chroot.is_some() {
-        panic!("`chroot` is currently unsupported!");
+        die("`chroot` is currently unsupported!");
     }
 
     if cli.stdin {
-        panic!("passwords via `stdin` are currently unsupported!");
+        die("passwords via `stdin` are currently unsupported!");
     }
 
     let command = if cli.validate {
@@ -103,5 +108,5 @@ fn main() {
         .args(command)
         .exec();
 
-    panic!("{}", error);
+    die(&format!("failed to execute run0: {error}"));
 }
