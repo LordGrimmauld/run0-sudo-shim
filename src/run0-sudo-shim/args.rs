@@ -25,7 +25,8 @@ pub struct Cli {
     #[clap(long = "chdir", short = 'D')]
     pub working_directory: Option<String>,
 
-    /// preserve user environment when running command
+    /// preserve user environment when running command.
+    /// If no explicit list of environment variables is supplied, preserves all variables except a narrow blocklist. This is considered insecure and a warning will be emitted.
     #[clap(long, short = 'E', value_delimiter(','), num_args(0..), require_equals(true))]
     pub preserve_env: Option<Vec<String>>,
 

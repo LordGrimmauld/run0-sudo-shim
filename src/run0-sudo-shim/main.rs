@@ -28,7 +28,7 @@ fn die(msg: &str) -> ! {
 
 // https://github.com/trifectatechfoundation/sudo-rs/blob/09a5b9acdd462a1606e20f7c241d3b433fbf373a/src/defaults/mod.rs#L72-L78
 // https://github.com/sudo-project/sudo/blob/d0a19ef42dd1377e6cbfa0076663406a9ab11920/plugins/sudoers/env.c#L133-L200
-// WARNING: This is a Blocklist. Any random piece of software can loot at some potentially dangerous environment variable.
+// WARNING: This is a Blocklist. Any random piece of software can look at some potentially dangerous environment variable.
 // This list may desync with sudo over time. This is a parity issue.
 // -E is a VERY bad idea design-wise. So bad, in fact, sudo-rs refuses to accept the flag entirely.
 const ENV_DELETE_FIXED: &[&str] = &[
@@ -197,6 +197,9 @@ fn main() {
 
     let env_flags = if let Some(vars) = cli.preserve_env {
         let vars = if vars.is_empty() {
+            eprintln!(
+                "run0-sudo-shim: Potentially insecure use of -E or --preserve-env without explicit list of preserved env vars"
+            );
             env::vars()
                 .map(|(key, _)| key)
                 .filter(|e| env_var_allowed(e))

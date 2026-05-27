@@ -25,7 +25,7 @@ Options:
   -D, --chdir <WORKING_DIRECTORY>
           change the working directory before running command
   -E, --preserve-env[=<PRESERVE_ENV>...]
-          preserve user environment when running command
+          preserve user environment when running command. If no explicit list of environment variables is supplied, preserves all variables except a narrow blocklist. This is considered insecure and a warning will be emitted
   -e, --edit
           [UNSUPPORTED] edit files instead of running a command
   -g, --group <GROUP>
