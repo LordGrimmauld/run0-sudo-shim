@@ -48,12 +48,20 @@
         {
           lib,
           rustPlatform,
+          systemd,
         }:
         rustPlatform.buildRustPackage {
           inherit name;
           inherit (cargo-toml) version;
           src = lib.cleanSource ./.;
           cargoLock.lockFile = ./Cargo.lock;
+
+          strictDeps = true;
+          __structuredAttrs = true;
+
+          env = {
+            RUN0 = lib.getExe' systemd "run0";
+          };
 
           postInstall = ''
             ln -s $out/bin/${name} $out/bin/sudo
