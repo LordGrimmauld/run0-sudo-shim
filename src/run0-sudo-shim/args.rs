@@ -49,11 +49,11 @@ pub struct Cli {
     #[clap(long, short = 'i', default_value_t = false)]
     pub login: bool,
 
-    /// [IGNORED] remove timestamp file completely
+    /// [UNSUPPORTED] remove timestamp file completely
     #[clap(long, short = 'K', default_value_t = false)]
     pub remove_timestamp: bool,
 
-    /// [IGNORED] invalidate timestamp file
+    /// [UNSUPPORTED] invalidate timestamp file
     #[clap(long, short = 'k', default_value_t = false)]
     pub reset_timestamp: bool,
 

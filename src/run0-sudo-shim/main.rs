@@ -44,6 +44,11 @@ fn main() {
         die("passwords via `stdin` are currently unsupported!");
     }
 
+    if cli.remove_timestamp || cli.reset_timestamp {
+        // potential solution: call RevokeTemporaryAuthorizations on org.freedesktop.PolicyKit1.Authority dbus
+        die("removing or resetting authentication timestamps is currently unsupported")
+    }
+
     let command = if cli.validate {
         vec![String::from(TRUE_CMD)]
     } else {
