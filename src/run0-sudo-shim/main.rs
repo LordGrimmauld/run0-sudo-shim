@@ -60,7 +60,12 @@ fn main() {
         cli.command
     };
 
-    let chdir = cli.working_directory.map(|wd| format!("--chdir={wd}"));
+    let chdir = cli
+        .working_directory
+        .or(env::current_dir()
+            .map(|p| p.to_string_lossy().into_owned())
+            .ok())
+        .map(|wd| format!("--chdir={wd}"));
 
     let non_interactive = if cli.non_interactive {
         Some("--no-ask-password")
