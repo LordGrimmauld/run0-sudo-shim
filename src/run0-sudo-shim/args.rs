@@ -81,7 +81,7 @@ pub struct Cli {
     #[clap(long, short = 'S', default_value_t = false)]
     pub stdin: bool,
 
-    /// [IGNORED] run shell as the target user; a command may also be specified
+    /// run shell as the target user; a command may also be specified
     #[clap(long, short, default_value_t = false)]
     pub shell: bool,
 
