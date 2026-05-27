@@ -4,7 +4,8 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable-small";
     polkit-stdin-agent = {
-      url = "git+https://codeberg.org/r-vdp/polkit-stdin-agent";
+      # url = "git+https://codeberg.org/r-vdp/polkit-stdin-agent"; # original
+      url = "git+https://git.grimmauld.de/mirrors/polkit-stdin-agent"; # original is on codeberg, but gets rate-limited causing GHA to fail.
       inputs.nixpkgs.follows = "nixpkgs";
     };
     nix-github-actions = {

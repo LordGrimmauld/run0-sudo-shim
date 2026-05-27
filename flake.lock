@@ -68,11 +68,11 @@
         "rev": "95beb16b78de357ac11de2b492597c1add2503b7",
         "revCount": 16,
         "type": "git",
-        "url": "https://codeberg.org/r-vdp/polkit-stdin-agent"
+        "url": "https://git.grimmauld.de/mirrors/polkit-stdin-agent"
       },
       "original": {
         "type": "git",
-        "url": "https://codeberg.org/r-vdp/polkit-stdin-agent"
+        "url": "https://git.grimmauld.de/mirrors/polkit-stdin-agent"
       }
     },
     "root": {
