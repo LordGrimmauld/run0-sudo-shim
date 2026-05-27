@@ -32,14 +32,14 @@ Options:
           run command as the specified group name or ID
   -H, --set-home
           set HOME variable to target user's home dir
-      --host
-          [IGNORED] run command on host (if supported by plugin)
+      --host <HOST>
+          [UNSUPPORTED] run command on host (if supported by plugin)
   -i, --login
           run login shell as the target user; a command may also be specified
   -K, --remove-timestamp
-          [IGNORED] remove timestamp file completely
+          [UNSUPPORTED] remove timestamp file completely
   -k, --reset-timestamp
-          [IGNORED] invalidate timestamp file
+          [UNSUPPORTED] invalidate timestamp file
   -l, --list...
           [UNSUPPORTED] list user's privileges or check a specific command; use twice for longer format
   -n, --non-interactive
@@ -53,9 +53,9 @@ Options:
   -S, --stdin
           [UNSUPPORTED] read password from standard input
   -s, --shell
-          [IGNORED] run shell as the target user; a command may also be specified
+          run shell as the target user; a command may also be specified
   -T, --command-timeout <COMMAND_TIMEOUT>
-          [IGNORED] terminate command after the specified time limit
+          terminate command after the specified time limit
   -U, --other-user <OTHER_USER>
           [UNSUPPORTED] in list mode, display privileges for user
   -u, --user <USER>
