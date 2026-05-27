@@ -46,6 +46,7 @@
 
       package =
         {
+          coreutils,
           lib,
           rustPlatform,
           systemd,
@@ -61,6 +62,7 @@
 
           env = {
             RUN0 = lib.getExe' systemd "run0";
+            TRUE = lib.getExe' coreutils "true";
           };
 
           postInstall = ''

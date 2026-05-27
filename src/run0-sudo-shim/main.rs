@@ -15,6 +15,11 @@ static RUN0_CMD: &str = match option_env!("RUN0") {
     None => "run0",
 };
 
+static TRUE_CMD: &str = match option_env!("TRUE") {
+    Some(x) => x,
+    None => "true",
+};
+
 fn main() {
     let cli = Cli::parse();
 
@@ -35,7 +40,7 @@ fn main() {
     }
 
     let command = if cli.validate {
-        vec![String::from("true")]
+        vec![String::from(TRUE_CMD)]
     } else {
         cli.command
     };
