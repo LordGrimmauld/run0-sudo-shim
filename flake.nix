@@ -46,6 +46,7 @@
 
       package =
         {
+          coreutils,
           lib,
           rustPlatform,
           systemd,
@@ -61,6 +62,7 @@
 
           env = {
             RUN0 = lib.getExe' systemd "run0";
+            TRUE = lib.getExe' coreutils "true";
           };
 
           postInstall = ''
@@ -190,9 +192,8 @@
 
               security.polkit.extraConfig = ''
                 polkit.addRule(function(action, subject) {
-                  if (action.id == "org.freedesktop.policykit.exec" ||
-                      action.id.indexOf("org.freedesktop.systemd1.") == 0) {
-                      return polkit.Result.AUTH_ADMIN_KEEP;
+                  if (action.id == "org.freedesktop.systemd1.manage-units" && subject.local && subject.active) {
+                    return polkit.Result.AUTH_ADMIN_KEEP;
                   }
                 });
               '';
@@ -211,5 +212,32 @@
             })
           ];
         };
+      nixosConfigurations.sudo-test-vm = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          (
+            { modulesPath, ... }:
+            {
+              imports = [
+                # "${modulesPath}/profiles/minimal.nix"
+                "${modulesPath}/virtualisation/qemu-vm.nix"
+              ];
+              system.stateVersion = "26.05";
+              virtualisation.graphics = false;
+              users.users = {
+                admin = {
+                  isNormalUser = true;
+                  extraGroups = [ "wheel" ];
+                  password = "1234";
+                };
+                noadmin = {
+                  isNormalUser = true;
+                  password = "4321";
+                };
+              };
+            }
+          )
+        ];
+      };
     };
 }

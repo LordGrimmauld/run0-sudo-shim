@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: BSD-3-Clause
 
 use clap::{ArgAction, Parser};
 
@@ -9,7 +9,7 @@ pub struct Cli {
     #[clap(long, short = 'A', default_value_t = false)]
     pub askpass: bool,
 
-    /// [IGNORED] run command in the background
+    /// [UNSUPPORTED] run command in the background
     #[clap(long, short, default_value_t = false)]
     pub background: bool,
 
@@ -25,7 +25,8 @@ pub struct Cli {
     #[clap(long = "chdir", short = 'D')]
     pub working_directory: Option<String>,
 
-    /// preserve user environment when running command
+    /// preserve user environment when running command.
+    /// If no explicit list of environment variables is supplied, preserves all variables except a narrow blocklist. This is considered insecure and a warning will be emitted.
     #[clap(long, short = 'E', value_delimiter(','), num_args(0..), require_equals(true))]
     pub preserve_env: Option<Vec<String>>,
 
@@ -41,19 +42,19 @@ pub struct Cli {
     #[clap(long, short = 'H', default_value_t = false)]
     pub set_home: bool,
 
-    /// [IGNORED] run command on host (if supported by plugin)
-    #[clap(long, default_value_t = false)]
-    pub host: bool,
+    /// [UNSUPPORTED] run command on host (if supported by plugin)
+    #[clap(long)]
+    pub host: Option<String>,
 
     /// run login shell as the target user; a command may also be specified
     #[clap(long, short = 'i', default_value_t = false)]
     pub login: bool,
 
-    /// [IGNORED] remove timestamp file completely
+    /// [UNSUPPORTED] remove timestamp file completely
     #[clap(long, short = 'K', default_value_t = false)]
     pub remove_timestamp: bool,
 
-    /// [IGNORED] invalidate timestamp file
+    /// [UNSUPPORTED] invalidate timestamp file
     #[clap(long, short = 'k', default_value_t = false)]
     pub reset_timestamp: bool,
 
@@ -65,7 +66,7 @@ pub struct Cli {
     #[clap(long, short, default_value_t = false)]
     pub non_interactive: bool,
 
-    /// [IGNORED] preserve group vector instead of setting to target's
+    /// [UNSUPPORTED] preserve group vector instead of setting to target's
     #[clap(long, short = 'P', default_value_t = false)]
     pub preserve_groups: bool,
 
@@ -81,11 +82,11 @@ pub struct Cli {
     #[clap(long, short = 'S', default_value_t = false)]
     pub stdin: bool,
 
-    /// [IGNORED] run shell as the target user; a command may also be specified
+    /// run shell as the target user; a command may also be specified
     #[clap(long, short, default_value_t = false)]
     pub shell: bool,
 
-    /// [IGNORED] terminate command after the specified time limit
+    /// terminate command after the specified time limit
     #[clap(long, short = 'T')]
     pub command_timeout: Option<String>,
 
