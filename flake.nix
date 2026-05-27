@@ -213,5 +213,32 @@
             })
           ];
         };
+      nixosConfigurations.sudo-test-vm = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          (
+            { modulesPath, ... }:
+            {
+              imports = [
+                # "${modulesPath}/profiles/minimal.nix"
+                "${modulesPath}/virtualisation/qemu-vm.nix"
+              ];
+              system.stateVersion = "26.05";
+              virtualisation.graphics = false;
+              users.users = {
+                admin = {
+                  isNormalUser = true;
+                  extraGroups = [ "wheel" ];
+                  password = "1234";
+                };
+                noadmin = {
+                  isNormalUser = true;
+                  password = "4321";
+                };
+              };
+            }
+          )
+        ];
+      };
     };
 }

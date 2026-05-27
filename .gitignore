@@ -1,7 +1,7 @@
 target
 result
 result-*
-
+*.qcow2
 
 # Added by cargo
 
