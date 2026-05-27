@@ -192,8 +192,7 @@
 
               security.polkit.extraConfig = ''
                 polkit.addRule(function(action, subject) {
-                  if (action.id == "org.freedesktop.systemd1.manage-units" &&
-                      subject.isInGroup("wheel") && subject.local && subject.active) {
+                  if (action.id == "org.freedesktop.systemd1.manage-units" && subject.local && subject.active) {
                     return polkit.Result.AUTH_ADMIN_KEEP;
                   }
                 });
