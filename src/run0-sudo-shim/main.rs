@@ -26,6 +26,90 @@ fn die(msg: &str) -> ! {
     exit(1)
 }
 
+// https://github.com/trifectatechfoundation/sudo-rs/blob/09a5b9acdd462a1606e20f7c241d3b433fbf373a/src/defaults/mod.rs#L72-L78
+// https://github.com/sudo-project/sudo/blob/d0a19ef42dd1377e6cbfa0076663406a9ab11920/plugins/sudoers/env.c#L133-L200
+// WARNING: This is a Blocklist. Any random piece of software can loot at some potentially dangerous environment variable.
+// This list may desync with sudo over time. This is a parity issue.
+// -E is a VERY bad idea design-wise. So bad, in fact, sudo-rs refuses to accept the flag entirely.
+const ENV_DELETE_FIXED: &[&str] = &[
+    "IFS",
+    "CDPATH",
+    "LOCALDOMAIN",
+    "RES_OPTIONS",
+    "HOSTALIASES",
+    "NLSPATH",
+    "PATH_LOCALE",
+    "SHLIB_PATH",
+    "LIBPATH",
+    "AUTHSTATE",
+    "KRB5_KTNAME",
+    "VAR_ACE",
+    "USR_ACE",
+    "DLC_ACE",
+    "TERMINFO",          /* terminfo, exclusive path to terminfo files */
+    "TERMINFO_DIRS",     /* terminfo, path(s) to terminfo files */
+    "TERMPATH",          /* termcap, path(s) to termcap files */
+    "TERMCAP",           /* XXX - only if it starts with '/' */
+    "ENV",               /* ksh, file to source before script runs */
+    "BASH_ENV",          /* bash, file to source before script runs */
+    "PS4",               /* bash, prefix for lines in xtrace mode */
+    "GLOBIGNORE",        /* bash, globbing patterns to ignore */
+    "BASHOPTS",          /* bash, initial "shopt -s" options */
+    "SHELLOPTS",         /* bash, initial "set -o" options */
+    "JAVA_TOOL_OPTIONS", /* java, extra command line options */
+    "_JAVA_OPTIONS",     /* java, extra command line options (legacy) */
+    "CLASSPATH",         /* java, class search path */
+    "PERLIO_DEBUG",      /* perl, debugging output file */
+    "PERLLIB",           /* perl, search path for modules/includes */
+    "PERL5LIB",          /* perl 5, search path for modules/includes */
+    "PERL5OPT",          /* perl 5, extra command line options */
+    "PERL5DB",           /* perl 5, command used to load debugger */
+    "FPATH",             /* ksh, search path for functions */
+    "NULLCMD",           /* zsh, command for null file redirection */
+    "READNULLCMD",       /* zsh, command for null file redirection */
+    "ZDOTDIR",           /* zsh, search path for dot files */
+    "TMPPREFIX",         /* zsh, prefix for temporary files */
+    "PYTHONHOME",        /* python, module search path */
+    "PYTHONPATH",        /* python, search path */
+    "PYTHONINSPECT",     /* python, allow inspection */
+    "PYTHONUSERBASE",    /* python, per user site-packages directory */
+    "PYTHONSTARTUP",     /* python, interactive mode startup script */
+    "RUBYLIB",           /* ruby, library load path */
+    "RUBYOPT",           /* ruby, extra command line options */
+    "NODE_OPTIONS",      /* node.js, extra command line options */
+    "NODE_PATH",         /* node.js, module search path */
+    "GIT_SSH_COMMAND",   /* git, custom SSH command */
+    "GCONV_PATH",        /* glibc generic char set conversion iface */
+];
+
+const ENV_DELETE_PREFIX: &[&str] = &[
+    "LD_",
+    "_RLD",
+    "LDR_",
+    "KRB5_CONFIG",
+    "GIT_CONFIG_", /* git, global configuration override */
+    "_",           /* Underscore is a common marker for "internal" env vars*/
+];
+
+fn env_var_allowed(env_var: &str) -> bool {
+    if ENV_DELETE_FIXED.contains(&env_var) {
+        return false;
+    }
+
+    if ENV_DELETE_PREFIX
+        .iter()
+        .any(|deny| env_var.starts_with(deny))
+    {
+        return false;
+    }
+
+    if env_var.contains("=") {
+        return false;
+    }
+
+    true
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -113,13 +197,16 @@ fn main() {
 
     let env_flags = if let Some(vars) = cli.preserve_env {
         let vars = if vars.is_empty() {
-            env::vars().map(|(key, _)| key).collect()
+            env::vars()
+                .map(|(key, _)| key)
+                .filter(|e| env_var_allowed(e))
+                .collect()
         } else {
             vars
         };
 
-        vars.iter()
-            .filter(|e| !(cli.set_home && *e == "HOME"))
+        vars.into_iter()
+            .filter(|e| e != "HOME" && e != "USER")
             .map(|e| format!("--setenv={e}"))
             .collect()
     } else {
