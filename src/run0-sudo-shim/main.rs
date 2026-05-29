@@ -10,7 +10,7 @@ use std::{
 
 use crate::args::Cli;
 use clap::Parser;
-use users::get_current_uid;
+use users::{get_current_uid, uid_t};
 
 static RUN0_CMD: &str = match option_env!("RUN0") {
     Some(x) => x,
@@ -134,7 +134,11 @@ impl Display for Error {
 
 impl std::error::Error for Error {}
 
-fn parse_to_run0_cli(cli: Cli) -> Result<Vec<String>, Error> {
+fn parse_to_run0_cli(
+    cli: Cli,
+    cwd: Option<String>,
+    current_uid: uid_t,
+) -> Result<Vec<String>, Error> {
     let mut buf: Vec<String> = Vec::new();
     if cli.edit {
         return Err(Error::Unsupported(String::from("--edit")));
@@ -180,10 +184,7 @@ fn parse_to_run0_cli(cli: Cli) -> Result<Vec<String>, Error> {
     if let Some(work_dir) = cli.working_directory.or(if cli.login {
         Some(String::from("~"))
     } else {
-        // FIXME: impure
-        env::current_dir()
-            .map(|p| p.to_string_lossy().into_owned())
-            .ok()
+        cwd
     }) {
         buf.push(format!("--chdir={work_dir}"));
     }
@@ -196,8 +197,7 @@ fn parse_to_run0_cli(cli: Cli) -> Result<Vec<String>, Error> {
         // FIXME: handle numerics safely
         buf.push(format!("--user={}", user.trim_start_matches('#')))
     } else if cli.group.is_some() {
-        // FIXME: impure
-        buf.push(format!("--user={}", get_current_uid()))
+        buf.push(format!("--user={}", current_uid))
     }
 
     if let Some(group) = cli.group {
@@ -261,7 +261,11 @@ fn main() {
         print!("\x07");
     }
 
-    let mut cli = match parse_to_run0_cli(cli) {
+    let cwd = env::current_dir()
+        .map(|p| p.to_string_lossy().into_owned())
+        .ok();
+
+    let mut cli = match parse_to_run0_cli(cli, cwd, get_current_uid()) {
         Ok(cli) => cli.into_iter(),
         Err(e) => match e {
             Error::PrintHelp => {
