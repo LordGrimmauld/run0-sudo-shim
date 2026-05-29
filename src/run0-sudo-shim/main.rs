@@ -3,6 +3,7 @@
 mod args;
 use std::{
     env,
+    fmt::Display,
     os::unix::process::CommandExt,
     process::{Command, exit},
 };
@@ -110,92 +111,101 @@ fn env_var_allowed(env_var: &str) -> bool {
     true
 }
 
-fn main() {
-    let cli = Cli::parse();
+#[derive(PartialEq, Eq, Debug)]
+pub enum Error {
+    Unsupported(String),
+    UnknownUser(String),
+    UnknownGroup(String),
+    PrintHelp,
+}
 
+impl Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Unsupported(feat) => {
+                f.write_fmt(format_args!("{} is currently unsupported", feat))
+            }
+            Self::PrintHelp => f.write_str(""), // FIXME
+            Error::UnknownUser(u) => f.write_fmt(format_args!("unknown user: {u}")),
+            Error::UnknownGroup(g) => f.write_fmt(format_args!("unknown group: {g}")),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
+
+fn parse_to_run0_cli(cli: Cli) -> Result<Vec<String>, Error> {
+    let mut buf: Vec<String> = Vec::new();
     if cli.edit {
-        die("`edit` mode is currently unsupported!");
+        return Err(Error::Unsupported(String::from("--edit")));
     }
 
     if cli.list > 0 || cli.other_user.is_some() {
-        die("`list` mode is currently unsupported!");
+        return Err(Error::Unsupported(String::from("list mode")));
     }
 
     if cli.chroot.is_some() {
-        die("`chroot` is currently unsupported!");
+        return Err(Error::Unsupported(String::from("--chroot")));
     }
 
     if cli.stdin {
-        die("passwords via `stdin` are currently unsupported!");
+        return Err(Error::Unsupported(String::from("--stdin")));
     }
 
     if cli.remove_timestamp || cli.reset_timestamp {
         // potential solution: call RevokeTemporaryAuthorizations on org.freedesktop.PolicyKit1.Authority dbus
-        die("removing or resetting authentication timestamps is currently unsupported")
+        return Err(Error::Unsupported(String::from(
+            "removing or resetting authentication timestamps",
+        )));
     }
 
     if cli.host.is_some() {
-        die("`host` is currently unsupported!")
+        return Err(Error::Unsupported(String::from("--host")));
     }
 
     if cli.preserve_groups {
-        die("`preserve-groups` is currently unsupported!")
+        return Err(Error::Unsupported(String::from("--preserve-groups")));
     }
 
     if cli.background {
-        die("`background` is currently unsupported!")
+        return Err(Error::Unsupported(String::from("--background")));
     }
 
-    if cli.askpass {
-        eprintln!("run0-sudo-shim: --askpass is currently ignored");
+    buf.push(String::from(RUN0_CMD));
+
+    if cli.shell || cli.login {
+        buf.push(String::from("--via-shell"));
     }
 
-    if cli.prompt.is_some() {
-        eprintln!("run0-sudo-shim: --prompt is currently ignored");
+    if let Some(work_dir) = cli.working_directory.or(if cli.login {
+        Some(String::from("~"))
+    } else {
+        // FIXME: impure
+        env::current_dir()
+            .map(|p| p.to_string_lossy().into_owned())
+            .ok()
+    }) {
+        buf.push(format!("--chdir={work_dir}"));
     }
 
-    let command = if cli.validate {
-        vec![String::from(TRUE_CMD)]
-    } else {
-        cli.command
-    };
+    if cli.non_interactive {
+        buf.push(String::from("--no-ask-password"))
+    }
 
-    let shell = if cli.shell || cli.login {
-        Some("--via-shell")
-    } else {
-        None
-    };
+    if let Some(user) = cli.user {
+        // FIXME: handle numerics safely
+        buf.push(format!("--user={}", user.trim_start_matches('#')))
+    } else if cli.group.is_some() {
+        // FIXME: impure
+        buf.push(format!("--user={}", get_current_uid()))
+    }
 
-    let chdir = cli
-        .working_directory
-        .or(if cli.login {
-            Some(String::from("~"))
-        } else {
-            env::current_dir()
-                .map(|p| p.to_string_lossy().into_owned())
-                .ok()
-        })
-        .map(|wd| format!("--chdir={wd}"));
+    if let Some(group) = cli.group {
+        // FIXME: handle numerics safely
+        buf.push(format!("--group={}", group.trim_start_matches('#')))
+    }
 
-    let non_interactive = if cli.non_interactive {
-        Some("--no-ask-password")
-    } else {
-        None
-    };
-
-    let group = cli
-        .group
-        .map(|g| format!("--group={}", g.trim_start_matches('#')));
-    let user = cli
-        .user
-        .or(if group.is_some() {
-            Some(get_current_uid().to_string())
-        } else {
-            None
-        })
-        .map(|u| format!("--user={}", u.trim_start_matches('#')));
-
-    let env_flags = if let Some(vars) = cli.preserve_env {
+    if let Some(vars) = cli.preserve_env {
         let vars = if vars.is_empty() {
             eprintln!(
                 "run0-sudo-shim: Potentially insecure use of -E or --preserve-env without explicit list of preserved env vars"
@@ -207,48 +217,65 @@ fn main() {
         } else {
             vars
         };
+        buf.extend(
+            vars.into_iter()
+                .filter(|e| e != "HOME" && e != "USER")
+                .map(|e| format!("--setenv={e}")),
+        );
+    }
 
-        vars.into_iter()
-            .filter(|e| e != "HOME" && e != "USER")
-            .map(|e| format!("--setenv={e}"))
-            .collect()
-    } else {
-        Vec::new()
-    };
+    if let Some(limit_nofile) = cli.file_descriptor_limit {
+        buf.push(format!("--property=LimitNOFILE={limit_nofile}"));
+    }
 
-    let nofile = cli
-        .file_descriptor_limit
-        .map(|limit_nofile| format!("--property=LimitNOFILE={limit_nofile}"));
+    if let Some(timeout_secs) = cli.command_timeout {
+        buf.push(format!("--property=RuntimeMaxSec={timeout_secs}"));
+    }
 
-    let runtime_max = cli
-        .command_timeout
-        .map(|timeout_secs| format!("--property=RuntimeMaxSec={timeout_secs}"));
+    buf.extend(cli.run0_extra_args);
+    buf.push(String::from("--"));
 
-    let run0_extra_args = cli.run0_extra_args;
+    if cli.validate {
+        buf.push(String::from(TRUE_CMD));
+    } else if !cli.command.is_empty() {
+        buf.extend(cli.command);
+    } else if !(cli.shell || cli.login) {
+        return Err(Error::PrintHelp);
+    }
 
-    if command.is_empty() && shell.is_none() {
-        let mut cmd = clap::Command::new(env!("CARGO_PKG_NAME"));
-        cmd.print_help().ok();
-        exit(1);
+    return Ok(buf);
+}
+
+fn main() {
+    let cli = Cli::parse();
+
+    if cli.askpass {
+        eprintln!("run0-sudo-shim: --askpass is currently ignored");
+    }
+
+    if cli.prompt.is_some() {
+        eprintln!("run0-sudo-shim: --prompt is currently ignored");
     }
 
     if cli.bell && !cli.non_interactive {
         print!("\x07");
     }
 
-    let error = Command::new(RUN0_CMD)
-        .args(shell.iter())
-        .args(chdir.iter())
-        .args(non_interactive.iter())
-        .args(group.iter())
-        .args(user.iter())
-        .args(nofile.iter())
-        .args(runtime_max.iter())
-        .args(env_flags)
-        .args(run0_extra_args.iter())
-        .arg("--")
-        .args(command)
-        .exec();
+    let mut cli = match parse_to_run0_cli(cli) {
+        Ok(cli) => cli.into_iter(),
+        Err(e) => match e {
+            Error::PrintHelp => {
+                let mut cmd = clap::Command::new(env!("CARGO_PKG_NAME"));
+                cmd.print_help().ok();
+                exit(1);
+            }
+            _ => die(&format!("{}", e)),
+        },
+    };
+
+    let program = cli.next().unwrap_or_else(|| die("unable to construct cli"));
+
+    let error = Command::new(program).args(cli).exec();
 
     die(&format!("failed to execute run0: {error}"));
 }
