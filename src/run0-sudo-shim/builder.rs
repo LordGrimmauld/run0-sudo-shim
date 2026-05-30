@@ -130,6 +130,7 @@ pub fn parse_to_run0_cli(
     current_uid: uid_t,
     current_env: Vec<String>,
 ) -> Result<Vec<String>, Error> {
+    // Maybe migrate to `systemd-run --wait -P -q -G` ?
     let mut buf: Vec<String> = Vec::new();
     if cli.edit {
         return Err(Error::Unsupported(String::from("--edit")));
@@ -155,6 +156,7 @@ pub fn parse_to_run0_cli(
     }
 
     if cli.host.is_some() {
+        // potential solution: raw systemd-run with `--host`
         return Err(Error::Unsupported(String::from("--host")));
     }
 
@@ -163,6 +165,7 @@ pub fn parse_to_run0_cli(
     }
 
     if cli.background {
+        // potential solution: raw systemd-run with `--no-block`
         return Err(Error::Unsupported(String::from("--background")));
     }
 
@@ -235,4 +238,400 @@ pub fn parse_to_run0_cli(
     }
 
     Ok(buf)
+}
+
+#[cfg(test)]
+mod tests {
+    use clap::Parser;
+
+    use super::*;
+
+    #[test]
+    fn test_prog() {
+        let cli = Cli::parse_from(["sudo", "prog"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(
+            build_result,
+            Ok(vec![
+                String::from(RUN0_CMD),
+                String::from("--"),
+                String::from("prog")
+            ])
+        );
+    }
+    #[test]
+    fn test_bare() {
+        let cli = Cli::parse_from(["sudo"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(build_result, Err(Error::PrintHelp));
+    }
+
+    #[test]
+    fn test_chdir() {
+        let cli = Cli::parse_from(["sudo", "-D", "/foo", "prog"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(
+            build_result,
+            Ok(vec![
+                String::from(RUN0_CMD),
+                String::from("--chdir=/foo"),
+                String::from("--"),
+                String::from("prog")
+            ])
+        );
+    }
+
+    #[test]
+    fn test_close_from() {
+        let cli = Cli::parse_from(["sudo", "-C", "1000", "prog"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(
+            build_result,
+            Ok(vec![
+                String::from(RUN0_CMD),
+                String::from("--property=LimitNOFILE=1000"),
+                String::from("--"),
+                String::from("prog")
+            ])
+        );
+    }
+
+    #[test]
+    fn test_interactive() {
+        let cli = Cli::parse_from(["sudo", "-i"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert!(build_result.is_ok());
+        let args = build_result.unwrap();
+        assert!(args[0] == RUN0_CMD);
+        assert!(args.contains(&String::from("--chdir=~")));
+        assert!(args.contains(&String::from("--via-shell")));
+    }
+
+    #[test]
+    fn test_preserve_env_selective() {
+        let cli = Cli::parse_from(["sudo", "--preserve-env=foo,bar,baz", "prog"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(
+            build_result,
+            Ok(vec![
+                String::from(RUN0_CMD),
+                String::from("--setenv=foo"),
+                String::from("--setenv=bar"),
+                String::from("--setenv=baz"),
+                String::from("--"),
+                String::from("prog")
+            ])
+        );
+    }
+
+    #[test]
+    fn test_preserve_env_global() {
+        let cli = Cli::parse_from(["sudo", "-E", "prog"]);
+        let build_result = parse_to_run0_cli(
+            cli,
+            None,
+            1000,
+            vec![
+                String::from("foo"),
+                String::from("bar"),
+                String::from("baz"),
+            ],
+        );
+        assert_eq!(
+            build_result,
+            Ok(vec![
+                String::from(RUN0_CMD),
+                String::from("--setenv=foo"),
+                String::from("--setenv=bar"),
+                String::from("--setenv=baz"),
+                String::from("--"),
+                String::from("prog")
+            ])
+        );
+    }
+
+    #[test]
+    fn test_preserve_env_global_strip() {
+        let cli = Cli::parse_from(["sudo", "-E", "prog"]);
+        let build_result = parse_to_run0_cli(
+            cli,
+            None,
+            1000,
+            vec![
+                String::from("LD_LIBRARY_PATH"),
+                String::from("LD_PRELOAD"),
+                String::from("PYTHONPATH"),
+            ],
+        );
+        assert_eq!(
+            build_result,
+            Ok(vec![
+                String::from(RUN0_CMD),
+                String::from("--"),
+                String::from("prog")
+            ])
+        );
+    }
+
+    #[test]
+    fn test_group() {
+        let cli = Cli::parse_from(["sudo", "-g", "dialout", "prog"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(
+            build_result,
+            Ok(vec![
+                String::from(RUN0_CMD),
+                String::from("--user=1000"), // -g should maintain spawning user
+                String::from("--group=dialout"),
+                String::from("--"),
+                String::from("prog")
+            ])
+        );
+    }
+
+    #[test]
+    fn test_group_and_user() {
+        let cli = Cli::parse_from(["sudo", "-g", "dialout", "-u", "root", "prog"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(
+            build_result,
+            Ok(vec![
+                String::from(RUN0_CMD),
+                String::from("--user=root"),
+                String::from("--group=dialout"),
+                String::from("--"),
+                String::from("prog")
+            ])
+        );
+    }
+
+    #[test]
+    fn test_numeric_user() {
+        let cli = Cli::parse_from(["sudo", "-u", "#0", "prog"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(
+            build_result,
+            Ok(vec![
+                String::from(RUN0_CMD),
+                String::from("--user=0"),
+                String::from("--"),
+                String::from("prog")
+            ])
+        );
+    }
+
+    #[test]
+    fn test_named_user() {
+        let cli = Cli::parse_from(["sudo", "-u", "root", "prog"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(
+            build_result,
+            Ok(vec![
+                String::from(RUN0_CMD),
+                String::from("--user=root"),
+                String::from("--"),
+                String::from("prog")
+            ])
+        );
+    }
+
+    #[test]
+    fn test_non_interactive() {
+        let cli = Cli::parse_from(["sudo", "-n", "prog"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(
+            build_result,
+            Ok(vec![
+                String::from(RUN0_CMD),
+                String::from("--no-ask-password"),
+                String::from("--"),
+                String::from("prog")
+            ])
+        );
+    }
+
+    #[test]
+    fn test_shell_command() {
+        let cli = Cli::parse_from(["sudo", "-s", "prog"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(
+            build_result,
+            Ok(vec![
+                String::from(RUN0_CMD),
+                String::from("--via-shell"),
+                String::from("--"),
+                String::from("prog")
+            ])
+        );
+    }
+
+    #[test]
+    fn test_shell_bare() {
+        let cli = Cli::parse_from(["sudo", "-s"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(
+            build_result,
+            Ok(vec![
+                String::from(RUN0_CMD),
+                String::from("--via-shell"),
+                String::from("--"),
+            ])
+        );
+    }
+
+    #[test]
+    fn test_timeout() {
+        let cli = Cli::parse_from(["sudo", "-T", "1000", "prog"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(
+            build_result,
+            Ok(vec![
+                String::from(RUN0_CMD),
+                String::from("--property=RuntimeMaxSec=1000"),
+                String::from("--"),
+                String::from("prog")
+            ])
+        );
+    }
+
+    #[test]
+    fn test_validate() {
+        let cli = Cli::parse_from(["sudo", "-v"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(
+            build_result,
+            Ok(vec![
+                String::from(RUN0_CMD),
+                String::from("--"),
+                String::from(TRUE_CMD)
+            ])
+        );
+    }
+
+    #[test]
+    fn test_extra_arg() {
+        let cli = Cli::parse_from(["sudo", "--run0-extra-arg=--background=42", "prog"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(
+            build_result,
+            Ok(vec![
+                String::from(RUN0_CMD),
+                String::from("--background=42"),
+                String::from("--"),
+                String::from("prog")
+            ])
+        );
+    }
+}
+
+#[cfg(test)]
+mod unsupported {
+    use clap::Parser;
+
+    use super::*;
+
+    #[test]
+    fn test_background_unsupported() {
+        let cli = Cli::parse_from(["sudo", "-b"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(
+            build_result,
+            Err(Error::Unsupported(String::from("--background")))
+        );
+    }
+
+    #[test]
+    fn test_edit_unsupported() {
+        let cli = Cli::parse_from(["sudo", "-e"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(
+            build_result,
+            Err(Error::Unsupported(String::from("--edit")))
+        );
+    }
+
+    #[test]
+    fn test_host_unsupported() {
+        let cli = Cli::parse_from(["sudo", "--host", "foo"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(
+            build_result,
+            Err(Error::Unsupported(String::from("--host")))
+        );
+    }
+
+    #[test]
+    fn test_remove_timestamp_unsupported() {
+        let cli = Cli::parse_from(["sudo", "-K"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(
+            build_result,
+            Err(Error::Unsupported(String::from(
+                "removing or resetting authentication timestamps"
+            )))
+        );
+    }
+
+    #[test]
+    fn test_reset_timestamp_unsupported() {
+        let cli = Cli::parse_from(["sudo", "-k"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(
+            build_result,
+            Err(Error::Unsupported(String::from(
+                "removing or resetting authentication timestamps"
+            )))
+        );
+    }
+
+    #[test]
+    fn test_list_unsupported() {
+        let cli = Cli::parse_from(["sudo", "-l"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(
+            build_result,
+            Err(Error::Unsupported(String::from("list mode")))
+        );
+    }
+
+    #[test]
+    fn test_preserve_group_unsupported() {
+        let cli = Cli::parse_from(["sudo", "-P"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(
+            build_result,
+            Err(Error::Unsupported(String::from("--preserve-groups")))
+        );
+    }
+
+    #[test]
+    fn test_chroot_unsupported() {
+        let cli = Cli::parse_from(["sudo", "-R", "/"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(
+            build_result,
+            Err(Error::Unsupported(String::from("--chroot")))
+        );
+    }
+
+    #[test]
+    fn test_stdin_unsupported() {
+        let cli = Cli::parse_from(["sudo", "-S"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(
+            build_result,
+            Err(Error::Unsupported(String::from("--stdin")))
+        );
+    }
+
+    #[test]
+    fn test_other_user_unsupported() {
+        // FIXME: This should probably not even be legal CLI input
+        let cli = Cli::parse_from(["sudo", "-U", "alice"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(
+            build_result,
+            Err(Error::Unsupported(String::from("list mode")))
+        );
+    }
 }
