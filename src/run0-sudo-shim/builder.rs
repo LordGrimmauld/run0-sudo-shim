@@ -6,6 +6,11 @@ use users::uid_t;
 
 use crate::args::Cli;
 
+static POLKIT_STDIN_AGENT: &str = match option_env!("POLKIT_STDIN_AGENT") {
+    Some(x) => x,
+    None => "polkit-stdin-agent",
+};
+
 static RUN0_CMD: &str = match option_env!("RUN0") {
     Some(x) => x,
     None => "run0",
@@ -144,10 +149,6 @@ pub fn parse_to_run0_cli(
         return Err(Error::Unsupported(String::from("--chroot")));
     }
 
-    if cli.stdin {
-        return Err(Error::Unsupported(String::from("--stdin")));
-    }
-
     if cli.remove_timestamp || cli.reset_timestamp {
         // potential solution: call RevokeTemporaryAuthorizations on org.freedesktop.PolicyKit1.Authority dbus
         return Err(Error::Unsupported(String::from(
@@ -167,6 +168,12 @@ pub fn parse_to_run0_cli(
     if cli.background {
         // potential solution: raw systemd-run with `--no-block`
         return Err(Error::Unsupported(String::from("--background")));
+    }
+
+    if cli.stdin {
+        buf.push(String::from(POLKIT_STDIN_AGENT));
+        buf.push(String::from("--password-fd=0"));
+        buf.push(String::from("--"));
     }
 
     buf.push(String::from(RUN0_CMD));
@@ -275,6 +282,23 @@ mod tests {
             Ok(vec![
                 String::from(RUN0_CMD),
                 String::from("--chdir=/foo"),
+                String::from("--"),
+                String::from("prog")
+            ])
+        );
+    }
+
+    #[test]
+    fn test_stdin() {
+        let cli = Cli::parse_from(["sudo", "--stdin", "prog"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(
+            build_result,
+            Ok(vec![
+                String::from(POLKIT_STDIN_AGENT),
+                String::from("--password-fd=0"),
+                String::from("--"),
+                String::from(RUN0_CMD),
                 String::from("--"),
                 String::from("prog")
             ])
@@ -611,16 +635,6 @@ mod unsupported {
         assert_eq!(
             build_result,
             Err(Error::Unsupported(String::from("--chroot")))
-        );
-    }
-
-    #[test]
-    fn test_stdin_unsupported() {
-        let cli = Cli::parse_from(["sudo", "-S"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
-        assert_eq!(
-            build_result,
-            Err(Error::Unsupported(String::from("--stdin")))
         );
     }
 
