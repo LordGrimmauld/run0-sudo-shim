@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
-use std::{env, fmt::Display};
+use std::fmt::Display;
 
 use users::uid_t;
 
@@ -128,6 +128,7 @@ pub fn parse_to_run0_cli(
     cli: Cli,
     cwd: Option<String>,
     current_uid: uid_t,
+    current_env: Vec<String>,
 ) -> Result<Vec<String>, Error> {
     let mut buf: Vec<String> = Vec::new();
     if cli.edit {
@@ -200,9 +201,8 @@ pub fn parse_to_run0_cli(
             eprintln!(
                 "run0-sudo-shim: Potentially insecure use of -E or --preserve-env without explicit list of preserved env vars"
             );
-            // FIXME: impure
-            env::vars()
-                .map(|(key, _)| key)
+            current_env
+                .into_iter()
                 .filter(|e| env_var_allowed(e))
                 .collect()
         } else {

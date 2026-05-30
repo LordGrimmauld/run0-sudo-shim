@@ -38,7 +38,9 @@ fn main() {
         .map(|p| p.to_string_lossy().into_owned())
         .ok();
 
-    let mut cli = match parse_to_run0_cli(cli, cwd, get_current_uid()) {
+    let env = env::vars().map(|(key, _)| key).collect();
+
+    let mut cli = match parse_to_run0_cli(cli, cwd, get_current_uid(), env) {
         Ok(cli) => cli.into_iter(),
         Err(e) => match e {
             Error::PrintHelp => {
