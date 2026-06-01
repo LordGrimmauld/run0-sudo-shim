@@ -78,7 +78,7 @@ pub struct Cli {
     #[clap(long, short = 'R')]
     pub chroot: Option<String>,
 
-    /// [UNSUPPORTED] read password from standard input
+    /// read password from standard input
     #[clap(long, short = 'S', default_value_t = false)]
     pub stdin: bool,
 

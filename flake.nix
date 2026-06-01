@@ -3,6 +3,11 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable-small";
+    polkit-stdin-agent = {
+      # url = "git+https://codeberg.org/r-vdp/polkit-stdin-agent"; # original
+      url = "git+https://git.grimmauld.de/mirrors/polkit-stdin-agent"; # original is on codeberg, but gets rate-limited causing GHA to fail.
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     nix-github-actions = {
       url = "github:nix-community/nix-github-actions";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -19,6 +24,7 @@
       nixpkgs,
       nix-github-actions,
       treefmt-nix,
+      polkit-stdin-agent,
       ...
     }:
     let
@@ -49,6 +55,7 @@
           coreutils,
           lib,
           rustPlatform,
+          polkit-stdin-agent,
           systemd,
         }:
         rustPlatform.buildRustPackage {
@@ -61,6 +68,7 @@
           __structuredAttrs = true;
 
           env = {
+            POLKIT_STDIN_AGENT = lib.getExe polkit-stdin-agent;
             RUN0 = lib.getExe' systemd "run0";
             TRUE = lib.getExe' coreutils "true";
           };
@@ -83,7 +91,12 @@
       packages = forEachSystem (
         { pkgs, system }:
         {
-          ${name} = pkgs.callPackage package { };
+          # use polkit-stdin-agent from nixpkgs once available
+          # https://github.com/NixOS/nixpkgs/pull/512018
+          ${name} = pkgs.callPackage package {
+            polkit-stdin-agent =
+              pkgs.polkit-stdin-agent or polkit-stdin-agent.packages."${system}".polkit-stdin-agent;
+          };
           default = self.packages.${system}.${name};
         }
       );
@@ -97,6 +110,7 @@
               pkgs.clippy
               pkgs.rust-analyzer
               pkgs.rustfmt
+              polkit-stdin-agent.packages."${system}".polkit-stdin-agent
             ];
           };
         }
@@ -118,19 +132,27 @@
                 run0-sudo-shim.enable = true;
               };
 
+              # environment.systemPackages = [
+              #   polkit-stdin-agent.packages."${system}".polkit-stdin-agent
+              # ];
+
               users.users = {
                 admin = {
                   isNormalUser = true;
                   extraGroups = [ "wheel" ];
+                  password = "1234";
                 };
                 noadmin = {
                   isNormalUser = true;
+                  password = "4321";
                 };
               };
             };
             testScript = ''
-              # machine.succeed('su - admin -c "sudo -v"') # can't yet give password, needs hacks to never ask for password in the test or enter the password
-              machine.fail('su - noadmin -c "sudo -v"')
+              machine.succeed('sudo -v')
+              # machine.succeed('su - admin -c "echo 1234 | polkit-stdin-agent -v --password-fd=0 -- run0 true"')
+              machine.succeed('su - admin -c "echo 1234 | sudo --stdin -v"')
+              machine.fail('su - noadmin -c "echo 4321 | sudo --stdin -v"')
             '';
           };
         }
@@ -140,7 +162,15 @@
         checks = { inherit (self.checks) x86_64-linux; };
       };
 
-      overlays.default = final: _: { ${name} = final.callPackage package { }; };
+      overlays.default = final: prev: {
+        ${name} = final.callPackage package {
+          # use polkit-stdin-agent from nixpkgs once available
+          # https://github.com/NixOS/nixpkgs/pull/512018
+          polkit-stdin-agent =
+            prev.polkit-stdin-agent
+              or polkit-stdin-agent.packages."${prev.stdenv.hostPlatform.system}".polkit-stdin-agent;
+        };
+      };
 
       nixosModules.default =
         {
