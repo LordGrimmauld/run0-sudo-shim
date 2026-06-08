@@ -2,12 +2,7 @@
   description = "a shim imitating sudo, but using run0 in the background";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable-small";
-    polkit-stdin-agent = {
-      # url = "git+https://codeberg.org/r-vdp/polkit-stdin-agent"; # original
-      url = "git+https://git.grimmauld.de/mirrors/polkit-stdin-agent"; # original is on codeberg, but gets rate-limited causing GHA to fail.
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     nix-github-actions = {
       url = "github:nix-community/nix-github-actions";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -24,7 +19,6 @@
       nixpkgs,
       nix-github-actions,
       treefmt-nix,
-      polkit-stdin-agent,
       ...
     }:
     let
@@ -44,9 +38,7 @@
             })
             [
               "x86_64-linux"
-              "x86_64-darwin"
               "aarch64-linux"
-              "aarch64-darwin"
             ]
         );
 
@@ -91,12 +83,7 @@
       packages = forEachSystem (
         { pkgs, system }:
         {
-          # use polkit-stdin-agent from nixpkgs once available
-          # https://github.com/NixOS/nixpkgs/pull/512018
-          ${name} = pkgs.callPackage package {
-            polkit-stdin-agent =
-              pkgs.polkit-stdin-agent or polkit-stdin-agent.packages."${system}".polkit-stdin-agent;
-          };
+          ${name} = pkgs.callPackage package { };
           default = self.packages.${system}.${name};
         }
       );
@@ -110,7 +97,7 @@
               pkgs.clippy
               pkgs.rust-analyzer
               pkgs.rustfmt
-              polkit-stdin-agent.packages."${system}".polkit-stdin-agent
+              pkgs.polkit-stdin-agent
             ];
           };
         }
@@ -133,7 +120,7 @@
               };
 
               # environment.systemPackages = [
-              #   polkit-stdin-agent.packages."${system}".polkit-stdin-agent
+              #   pkgs.polkit-stdin-agent
               # ];
 
               users.users = {
@@ -163,13 +150,7 @@
       };
 
       overlays.default = final: prev: {
-        ${name} = final.callPackage package {
-          # use polkit-stdin-agent from nixpkgs once available
-          # https://github.com/NixOS/nixpkgs/pull/512018
-          polkit-stdin-agent =
-            prev.polkit-stdin-agent
-              or polkit-stdin-agent.packages."${prev.stdenv.hostPlatform.system}".polkit-stdin-agent;
-        };
+        ${name} = final.callPackage package { };
       };
 
       nixosModules.default =
