@@ -75,6 +75,7 @@ const ENV_DELETE_FIXED: &[&str] = &[
     "NODE_PATH",         /* node.js, module search path */
     "GIT_SSH_COMMAND",   /* git, custom SSH command */
     "GCONV_PATH",        /* glibc generic char set conversion iface */
+    "USER",              /* skipped by --preserve-env without parameters */
 ];
 
 const ENV_DELETE_PREFIX: &[&str] = &[
@@ -228,7 +229,6 @@ pub fn parse_to_run0_cli(
                 vars
             }
         }))
-        .filter(|e| e != "HOME" && e != "USER")
         .map(|e| format!("--setenv={e}"))
     );
 
