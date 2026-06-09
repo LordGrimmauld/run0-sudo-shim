@@ -75,6 +75,7 @@ const ENV_DELETE_FIXED: &[&str] = &[
     "NODE_PATH",         /* node.js, module search path */
     "GIT_SSH_COMMAND",   /* git, custom SSH command */
     "GCONV_PATH",        /* glibc generic char set conversion iface */
+    "USER",              /* skipped by --preserve-env without parameters */
 ];
 
 const ENV_DELETE_PREFIX: &[&str] = &[
@@ -206,24 +207,30 @@ pub fn parse_to_run0_cli(
         buf.push(format!("--group={}", group.trim_start_matches('#')))
     }
 
-    if let Some(vars) = cli.preserve_env {
-        let vars = if vars.is_empty() {
-            eprintln!(
-                "run0-sudo-shim: Potentially insecure use of -E or --preserve-env without explicit list of preserved env vars"
-            );
-            current_env
-                .into_iter()
-                .filter(|e| env_var_allowed(e))
-                .collect()
-        } else {
-            vars
-        };
-        buf.extend(
-            vars.into_iter()
-                .filter(|e| e != "HOME" && e != "USER")
-                .map(|e| format!("--setenv={e}")),
-        );
-    }
+    let env_var_prefix_split_idx = cli
+        .command
+        .partition_point(|arg| arg.contains("=") && !arg.starts_with("=") && !arg.starts_with("/"));
+
+    let (extra_env_vars, command) = cli.command.split_at(env_var_prefix_split_idx);
+
+    buf.extend(extra_env_vars
+        .iter()
+        .cloned()
+        .chain(cli.preserve_env.map_or_else(Vec::new, |vars| {
+            if vars.is_empty() {
+                eprintln!(
+                    "run0-sudo-shim: Potentially insecure use of -E or --preserve-env without explicit list of preserved env vars"
+                );
+                current_env
+                    .into_iter()
+                    .filter(|e| env_var_allowed(e))
+                    .collect()
+            } else {
+                vars
+            }
+        }))
+        .map(|e| format!("--setenv={e}"))
+    );
 
     if let Some(limit_nofile) = cli.file_descriptor_limit {
         buf.push(format!("--property=LimitNOFILE={limit_nofile}"));
@@ -238,8 +245,8 @@ pub fn parse_to_run0_cli(
 
     if cli.validate {
         buf.push(String::from(TRUE_CMD));
-    } else if !cli.command.is_empty() {
-        buf.extend(cli.command);
+    } else if !command.is_empty() {
+        buf.extend(command.to_vec());
     } else if !(cli.shell || cli.login) {
         return Err(Error::PrintHelp);
     }
@@ -392,6 +399,54 @@ mod tests {
             Ok(vec![
                 String::from(RUN0_CMD),
                 String::from("--"),
+                String::from("prog")
+            ])
+        );
+    }
+
+    #[test]
+    fn test_set_env_prefix() {
+        let cli = Cli::parse_from(["sudo", "foo=42", "bar=buzz", "prog"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(
+            build_result,
+            Ok(vec![
+                String::from(RUN0_CMD),
+                String::from("--setenv=foo=42"),
+                String::from("--setenv=bar=buzz"),
+                String::from("--"),
+                String::from("prog")
+            ])
+        );
+    }
+
+    #[test]
+    fn test_set_env_prefix_skips_weird_1() {
+        let cli = Cli::parse_from(["sudo", "foo=42", "=bar=buzz", "prog"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(
+            build_result,
+            Ok(vec![
+                String::from(RUN0_CMD),
+                String::from("--setenv=foo=42"),
+                String::from("--"),
+                String::from("=bar=buzz"),
+                String::from("prog")
+            ])
+        );
+    }
+
+    #[test]
+    fn test_set_env_prefix_skips_weird_2() {
+        let cli = Cli::parse_from(["sudo", "foo=42", "/bar=buzz", "prog"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(
+            build_result,
+            Ok(vec![
+                String::from(RUN0_CMD),
+                String::from("--setenv=foo=42"),
+                String::from("--"),
+                String::from("/bar=buzz"),
                 String::from("prog")
             ])
         );
