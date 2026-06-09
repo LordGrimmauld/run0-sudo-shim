@@ -1,9 +1,46 @@
+# Why
+
 `run0-sudo-shim` attempts to imitate sudo as close as possible, while actually using `run0` in the back.
 
 `run0` does not rely on SUID binaries, which makes it a more secure option.
-It is also included in any systemd-based linux installation.
+It is also already included in any systemd-based linux installation.
 
-However, many programs just expect sudo to exist, so a shim is necessary to make those programs work.
+However, many programs just expect sudo to exist, so a shim is necessary to make those legacy programs work.
+`run0-sudo-shim` is meant for a migration period only. Eventually, all users should migrate to `run0`,
+`systemd-run`, or other socket-activated elevator tools. Even more preferable to that would be bespoke socket-activated
+services with a well-defined API, but that migration will take more time yet.
+
+# Security
+
+`run0-sudo-shim` is an unprivileged non-SUID binary rewriting `sudo` cli invocation into a `run0` invocation.
+`run0-sudo-shim` does not enforce security boundaries. It serves to only build an invocation of
+`run0`, which then has to enforces security boundaries.
+Anything a user can pass to the shim, the user can pass directly to `run0`.
+
+Security issues are one of:
+1. the NixOS module provided by the flake.nix (silently) modifies a users global system to be less secure
+2. the shim silently fails to perform a security action the caller requested (credential drop, env scrubbing, confinement to a non‑root user)
+3. a tool written against real `sudo` semantics passes *untrusted* data through the shim and gets a more privileged result than real `sudo` would have produced
+
+Differences in behavior between this shim and `sudo` are considered bugs, but not considered security issues.
+
+# Unsupported Options
+
+This shim will never read `/etc/sudoers`. The shim is unprivileged:
+It does not have read privileges on `/etc/sudoers`,
+and can not effectively enforce security against the user executing the shim.
+
+Security features of sudo that are unsupported (such as `--remove-timestamp`/`--reset-timestamp`)
+will exit and emit an error on `stderr`, as to not suggest security actions have succeeded despite not being run at all.
+
+`sudoedit`/`sudo -e` is currently not supported. Supporting this safely is quite complex, and may happen in a future version of this shim.
+
+`sudo -E` (preserving environment without an explicit list) strips some potentially dangerous environment variables.
+This is not a security boundary: deny-lists like this are inherently incomplete. This is only a measure against footguns.
+`sudo --preserve-env=<...> ...`/`sudo FOO=bar ...` does NOT make an attempt at stripping environment variables.
+This is equivalent to `SETENV: ALL` in `/etc/sudoers`. Security implications of this are enforced by systemd `run0`.
+
+# Supported Options
 
 ```
 Shim for the sudo command that utilizes run0
@@ -17,7 +54,7 @@ Options:
   -A, --askpass
           [IGNORED] use a helper program for password prompting
   -b, --background
-          [IGNORED] run command in the background
+          [UNSUPPORTED] run command in the background
   -B, --bell
           ring bell when prompting
   -C, --close-from <FILE_DESCRIPTOR_LIMIT>
@@ -45,7 +82,7 @@ Options:
   -n, --non-interactive
           non-interactive mode, no prompts are used
   -P, --preserve-groups
-          [IGNORED] preserve group vector instead of setting to target's
+          [UNSUPPORTED] preserve group vector instead of setting to target's
   -p, --prompt <PROMPT>
           [IGNORED] use the specified password prompt
   -R, --chroot <CHROOT>
@@ -70,7 +107,11 @@ Options:
           Print version
 ```
 
-#### Installation as a Flake
+# Installing
+
+`run0-sudo-shim` is a simple rust binary, which can be built with `cargo`. It does not require SUID binaries, nor does it require its own polkit rules.
+
+## Installation as a Flake
 
 Put in your inputs:
 
