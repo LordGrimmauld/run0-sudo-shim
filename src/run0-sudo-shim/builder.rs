@@ -207,9 +207,14 @@ pub fn parse_to_run0_cli(
         buf.push(format!("--group={}", group.trim_start_matches('#')))
     }
 
-    let env_var_prefix_split_idx = cli
-        .command
-        .partition_point(|arg| arg.contains("=") && !arg.starts_with("=") && !arg.starts_with("/"));
+    let mut env_var_prefix_split_idx: usize = 0;
+    for arg in cli.command.iter() {
+        if arg.contains("=") && !arg.starts_with("=") && !arg.starts_with("/") {
+            env_var_prefix_split_idx += 1;
+        } else {
+            break;
+        }
+    }
 
     let (extra_env_vars, command) = cli.command.split_at(env_var_prefix_split_idx);
 
@@ -416,6 +421,24 @@ mod tests {
                 String::from("--setenv=bar=buzz"),
                 String::from("--"),
                 String::from("prog")
+            ])
+        );
+    }
+
+    #[test]
+    fn test_set_env_prefix_after_command() {
+        // regression test for https://github.com/LordGrimmauld/run0-sudo-shim/issues/20
+        let cli = Cli::parse_from(["sudo", "env", "-i", "foo=42", "ls"]);
+        let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
+        assert_eq!(
+            build_result,
+            Ok(vec![
+                String::from(RUN0_CMD),
+                String::from("--"),
+                String::from("env"),
+                String::from("-i"),
+                String::from("foo=42"),
+                String::from("ls"),
             ])
         );
     }
