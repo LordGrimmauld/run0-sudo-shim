@@ -13,18 +13,6 @@ use crate::builder::*;
 fn main() {
     let cli = Cli::parse();
 
-    if cli.askpass {
-        eprintln!("run0-sudo-shim: --askpass is currently ignored");
-    }
-
-    if cli.prompt.is_some() {
-        eprintln!("run0-sudo-shim: --prompt is currently ignored");
-    }
-
-    if cli.bell && !cli.non_interactive {
-        print!("\x07");
-    }
-
     let cwd = env::current_dir()
         .map(|p| p.to_string_lossy().into_owned())
         .ok();

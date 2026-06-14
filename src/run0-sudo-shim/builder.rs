@@ -149,6 +149,7 @@ impl ShimResult {
         }
     }
 
+    // CAN EXIT(1)
     pub fn finalize(
         res: Result<ShimResult, Error>,
         argv0: impl Into<clap::builder::Str>,
@@ -221,6 +222,18 @@ pub fn parse_to_run0_cli(
     }
 
     let mut buf = ShimResult::new();
+
+    if cli.askpass {
+        buf.push_stderr("run0-sudo-shim: --askpass is currently ignored");
+    }
+
+    if cli.prompt.is_some() {
+        buf.push_stderr("run0-sudo-shim: --prompt is currently ignored");
+    }
+
+    if cli.bell && !cli.non_interactive {
+        buf.push_stdout("\x07");
+    }
 
     if cli.stdin {
         buf.cli.push(String::from(POLKIT_STDIN_AGENT));
