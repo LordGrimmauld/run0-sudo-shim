@@ -95,8 +95,12 @@ impl ShimResult {
                 _ => die(&format!("{}", e)),
             },
         };
-        eprintln!("{}", res.stderr);
-        println!("{}", res.stdout);
+        if !res.stderr.is_empty() {
+            eprintln!("{}", res.stderr);
+        }
+        if !res.stdout.is_empty() {
+            println!("{}", res.stdout);
+        }
         res.cli
     }
 
