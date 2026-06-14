@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
-mod args;
 use std::{env, os::unix::process::CommandExt, process::Command};
 
-use crate::args::Cli;
 use clap::Parser;
 use users::get_current_uid;
 
+mod args;
 mod common;
 mod sudo;
+
+use crate::args::*;
 use crate::common::*;
 
 fn main() {
@@ -20,11 +21,15 @@ fn main() {
 
     let env = env::vars().map(|(key, _)| key).collect();
 
-    let mut cli = ShimResult::finalize(
-        sudo::parse_to_run0_cli(cli, cwd, get_current_uid(), env),
-        env!("CARGO_PKG_NAME"),
-    )
-    .into_iter();
+    let mut cli = match cli.command {
+        Commands::Sudo(args) => {
+            ShimResult::finalize(
+                sudo::parse_to_run0_cli(args, cwd, get_current_uid(), env, cli.run0_extra_args),
+                "sudo",
+            )
+        }
+        .into_iter(),
+    };
 
     let program = cli.next().unwrap_or_else(|| die("unable to construct cli"));
 
