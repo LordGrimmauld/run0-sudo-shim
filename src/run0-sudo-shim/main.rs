@@ -8,7 +8,9 @@ use clap::Parser;
 use users::get_current_uid;
 
 mod builder;
+mod common;
 use crate::builder::*;
+use crate::common::*;
 
 fn main() {
     let cli = Cli::parse();
