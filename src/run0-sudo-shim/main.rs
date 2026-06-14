@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
-mod args;
 use std::{env, os::unix::process::CommandExt, process::Command};
 
-use crate::args::Cli;
 use clap::Parser;
 use users::get_current_uid;
 
@@ -12,7 +10,7 @@ mod sudo;
 use crate::common::*;
 
 fn main() {
-    let cli = Cli::parse();
+    let cli = sudo::Cli::parse();
 
     let cwd = env::current_dir()
         .map(|p| p.to_string_lossy().into_owned())

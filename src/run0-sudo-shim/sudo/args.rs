@@ -3,7 +3,7 @@
 use clap::{ArgAction, Parser};
 
 #[derive(Debug, Parser)]
-#[clap(name=env!("CARGO_PKG_NAME"), version=env!("CARGO_PKG_VERSION"),about=env!("CARGO_PKG_DESCRIPTION"), author=env!("CARGO_PKG_AUTHORS"))]
+#[clap(name="sudo", version=env!("CARGO_PKG_VERSION"),about=env!("CARGO_PKG_DESCRIPTION"), author=env!("CARGO_PKG_AUTHORS"))]
 pub struct Cli {
     /// [IGNORED] use a helper program for password prompting
     #[clap(long, short = 'A', default_value_t = false)]

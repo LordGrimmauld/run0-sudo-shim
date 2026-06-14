@@ -2,8 +2,10 @@
 
 use users::uid_t;
 
-use crate::args::Cli;
 use crate::common::*;
+
+mod args;
+pub use args::Cli;
 
 // https://github.com/trifectatechfoundation/sudo-rs/blob/09a5b9acdd462a1606e20f7c241d3b433fbf373a/src/defaults/mod.rs#L72-L78
 // https://github.com/sudo-project/sudo/blob/d0a19ef42dd1377e6cbfa0076663406a9ab11920/plugins/sudoers/env.c#L133-L200
