@@ -46,7 +46,7 @@ impl Display for Error {
 
 impl std::error::Error for Error {}
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct ShimResult {
     pub cli: Vec<String>,
     stderr: String,
@@ -60,6 +60,15 @@ impl ShimResult {
             stderr: String::new(),
             stdout: String::new(),
         }
+    }
+
+    #[cfg(test)]
+    pub fn ok_from(cli: Vec<String>) -> Result<Self, Error> {
+        Ok(Self {
+            cli,
+            stderr: String::new(),
+            stdout: String::new(),
+        })
     }
 
     // CAN EXIT(1)
