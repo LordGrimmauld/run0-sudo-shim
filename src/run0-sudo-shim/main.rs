@@ -7,9 +7,8 @@ use crate::args::Cli;
 use clap::Parser;
 use users::get_current_uid;
 
-mod builder;
 mod common;
-use crate::builder::*;
+mod sudo;
 use crate::common::*;
 
 fn main() {
@@ -22,7 +21,7 @@ fn main() {
     let env = env::vars().map(|(key, _)| key).collect();
 
     let mut cli = ShimResult::finalize(
-        parse_to_run0_cli(cli, cwd, get_current_uid(), env),
+        sudo::parse_to_run0_cli(cli, cwd, get_current_uid(), env),
         env!("CARGO_PKG_NAME"),
     )
     .into_iter();
