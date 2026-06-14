@@ -193,14 +193,12 @@ pub fn parse_to_run0_cli(
 
     let (extra_env_vars, command) = cli.command.split_at(env_var_prefix_split_idx);
 
-    buf.cli.extend(extra_env_vars
+    let env_var_flags = extra_env_vars
         .iter()
         .cloned()
         .chain(cli.preserve_env.map_or_else(Vec::new, |vars| {
             if vars.is_empty() {
-                eprintln!(
-                    "run0-sudo-shim: Potentially insecure use of -E or --preserve-env without explicit list of preserved env vars"
-                );
+                buf.push_stderr("run0-sudo-shim: Potentially insecure use of -E or --preserve-env without explicit list of preserved env vars");
                 current_env
                     .into_iter()
                     .filter(|e| env_var_allowed(e))
@@ -209,8 +207,9 @@ pub fn parse_to_run0_cli(
                 vars
             }
         }))
-        .map(|e| format!("--setenv={e}"))
-    );
+        .map(|e| format!("--setenv={e}"));
+
+    buf.cli.extend(env_var_flags);
 
     if let Some(limit_nofile) = cli.file_descriptor_limit {
         buf.cli
@@ -350,17 +349,21 @@ mod tests {
                 String::from("baz"),
             ],
         );
+        assert!(build_result.is_ok());
+        let res = build_result.unwrap();
         assert_eq!(
-            build_result,
-            ShimResult::ok_from(vec![
+            res.cli,
+            vec![
                 String::from(RUN0_CMD),
                 String::from("--setenv=foo"),
                 String::from("--setenv=bar"),
                 String::from("--setenv=baz"),
                 String::from("--"),
                 String::from("prog")
-            ])
+            ]
         );
+        assert!(res.get_stderr().contains("Potentially insecure use of -E"));
+        assert!(res.get_stdout().is_empty());
     }
 
     #[test]
@@ -376,14 +379,18 @@ mod tests {
                 String::from("PYTHONPATH"),
             ],
         );
+        assert!(build_result.is_ok());
+        let res = build_result.unwrap();
         assert_eq!(
-            build_result,
-            ShimResult::ok_from(vec![
+            res.cli,
+            vec![
                 String::from(RUN0_CMD),
                 String::from("--"),
                 String::from("prog")
-            ])
+            ]
         );
+        assert!(res.get_stderr().contains("Potentially insecure use of -E"));
+        assert!(res.get_stdout().is_empty());
     }
 
     #[test]

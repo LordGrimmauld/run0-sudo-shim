@@ -70,6 +70,15 @@ impl ShimResult {
             stdout: String::new(),
         })
     }
+    #[cfg(test)]
+    pub fn get_stderr(&self) -> &str {
+        &self.stderr
+    }
+
+    #[cfg(test)]
+    pub fn get_stdout(&self) -> &str {
+        &self.stdout
+    }
 
     // CAN EXIT(1)
     pub fn finalize(
