@@ -1,25 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
-use std::fmt::Display;
-
 use users::uid_t;
 
 use crate::args::Cli;
-
-static POLKIT_STDIN_AGENT: &str = match option_env!("POLKIT_STDIN_AGENT") {
-    Some(x) => x,
-    None => "polkit-stdin-agent",
-};
-
-static RUN0_CMD: &str = match option_env!("RUN0") {
-    Some(x) => x,
-    None => "run0",
-};
-
-static TRUE_CMD: &str = match option_env!("TRUE") {
-    Some(x) => x,
-    None => "true",
-};
+use crate::common::*;
 
 // https://github.com/trifectatechfoundation/sudo-rs/blob/09a5b9acdd462a1606e20f7c241d3b433fbf373a/src/defaults/mod.rs#L72-L78
 // https://github.com/sudo-project/sudo/blob/d0a19ef42dd1377e6cbfa0076663406a9ab11920/plugins/sudoers/env.c#L133-L200
@@ -106,38 +90,13 @@ fn env_var_allowed(env_var: &str) -> bool {
     true
 }
 
-#[derive(PartialEq, Eq, Debug)]
-#[allow(dead_code)]
-pub enum Error {
-    Unsupported(String),
-    UnknownUser(String),
-    UnknownGroup(String),
-    PrintHelp,
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Unsupported(feat) => {
-                f.write_fmt(format_args!("{} is currently unsupported", feat))
-            }
-            Self::PrintHelp => f.write_str(""), // FIXME
-            Error::UnknownUser(u) => f.write_fmt(format_args!("unknown user: {u}")),
-            Error::UnknownGroup(g) => f.write_fmt(format_args!("unknown group: {g}")),
-        }
-    }
-}
-
-impl std::error::Error for Error {}
-
 pub fn parse_to_run0_cli(
     cli: Cli,
     cwd: Option<String>,
     current_uid: uid_t,
     current_env: Vec<String>,
-) -> Result<Vec<String>, Error> {
+) -> Result<ShimResult, Error> {
     // Maybe migrate to `systemd-run --wait -P -q -G` ?
-    let mut buf: Vec<String> = Vec::new();
     if cli.edit {
         return Err(Error::Unsupported(String::from("--edit")));
     }
@@ -171,16 +130,30 @@ pub fn parse_to_run0_cli(
         return Err(Error::Unsupported(String::from("--background")));
     }
 
-    if cli.stdin {
-        buf.push(String::from(POLKIT_STDIN_AGENT));
-        buf.push(String::from("--password-fd=0"));
-        buf.push(String::from("--"));
+    let mut buf = ShimResult::new();
+
+    if cli.askpass {
+        buf.push_stderr("run0-sudo-shim: --askpass is currently ignored");
     }
 
-    buf.push(String::from(RUN0_CMD));
+    if cli.prompt.is_some() {
+        buf.push_stderr("run0-sudo-shim: --prompt is currently ignored");
+    }
+
+    if cli.bell && !cli.non_interactive {
+        buf.push_stdout("\x07");
+    }
+
+    if cli.stdin {
+        buf.cli.push(String::from(POLKIT_STDIN_AGENT));
+        buf.cli.push(String::from("--password-fd=0"));
+        buf.cli.push(String::from("--"));
+    }
+
+    buf.cli.push(String::from(RUN0_CMD));
 
     if cli.shell || cli.login {
-        buf.push(String::from("--via-shell"));
+        buf.cli.push(String::from("--via-shell"));
     }
 
     if let Some(work_dir) = cli.working_directory.or(if cli.login {
@@ -188,23 +161,25 @@ pub fn parse_to_run0_cli(
     } else {
         cwd
     }) {
-        buf.push(format!("--chdir={work_dir}"));
+        buf.cli.push(format!("--chdir={work_dir}"));
     }
 
     if cli.non_interactive {
-        buf.push(String::from("--no-ask-password"))
+        buf.cli.push(String::from("--no-ask-password"))
     }
 
     if let Some(user) = cli.user {
         // FIXME: handle numerics safely
-        buf.push(format!("--user={}", user.trim_start_matches('#')))
+        buf.cli
+            .push(format!("--user={}", user.trim_start_matches('#')))
     } else if cli.group.is_some() {
-        buf.push(format!("--user={}", current_uid))
+        buf.cli.push(format!("--user={}", current_uid))
     }
 
     if let Some(group) = cli.group {
         // FIXME: handle numerics safely
-        buf.push(format!("--group={}", group.trim_start_matches('#')))
+        buf.cli
+            .push(format!("--group={}", group.trim_start_matches('#')))
     }
 
     let mut env_var_prefix_split_idx: usize = 0;
@@ -218,14 +193,12 @@ pub fn parse_to_run0_cli(
 
     let (extra_env_vars, command) = cli.command.split_at(env_var_prefix_split_idx);
 
-    buf.extend(extra_env_vars
+    let env_var_flags = extra_env_vars
         .iter()
         .cloned()
         .chain(cli.preserve_env.map_or_else(Vec::new, |vars| {
             if vars.is_empty() {
-                eprintln!(
-                    "run0-sudo-shim: Potentially insecure use of -E or --preserve-env without explicit list of preserved env vars"
-                );
+                buf.push_stderr("run0-sudo-shim: Potentially insecure use of -E or --preserve-env without explicit list of preserved env vars");
                 current_env
                     .into_iter()
                     .filter(|e| env_var_allowed(e))
@@ -234,24 +207,27 @@ pub fn parse_to_run0_cli(
                 vars
             }
         }))
-        .map(|e| format!("--setenv={e}"))
-    );
+        .map(|e| format!("--setenv={e}"));
+
+    buf.cli.extend(env_var_flags);
 
     if let Some(limit_nofile) = cli.file_descriptor_limit {
-        buf.push(format!("--property=LimitNOFILE={limit_nofile}"));
+        buf.cli
+            .push(format!("--property=LimitNOFILE={limit_nofile}"));
     }
 
     if let Some(timeout_secs) = cli.command_timeout {
-        buf.push(format!("--property=RuntimeMaxSec={timeout_secs}"));
+        buf.cli
+            .push(format!("--property=RuntimeMaxSec={timeout_secs}"));
     }
 
-    buf.extend(cli.run0_extra_args);
-    buf.push(String::from("--"));
+    buf.cli.extend(cli.run0_extra_args);
+    buf.cli.push(String::from("--"));
 
     if cli.validate {
-        buf.push(String::from(TRUE_CMD));
+        buf.cli.push(String::from(TRUE_CMD));
     } else if !command.is_empty() {
-        buf.extend(command.to_vec());
+        buf.cli.extend(command.to_vec());
     } else if !(cli.shell || cli.login) {
         return Err(Error::PrintHelp);
     }
@@ -271,7 +247,7 @@ mod tests {
         let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
         assert_eq!(
             build_result,
-            Ok(vec![
+            ShimResult::ok_from(vec![
                 String::from(RUN0_CMD),
                 String::from("--"),
                 String::from("prog")
@@ -291,7 +267,7 @@ mod tests {
         let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
         assert_eq!(
             build_result,
-            Ok(vec![
+            ShimResult::ok_from(vec![
                 String::from(RUN0_CMD),
                 String::from("--chdir=/foo"),
                 String::from("--"),
@@ -306,7 +282,7 @@ mod tests {
         let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
         assert_eq!(
             build_result,
-            Ok(vec![
+            ShimResult::ok_from(vec![
                 String::from(POLKIT_STDIN_AGENT),
                 String::from("--password-fd=0"),
                 String::from("--"),
@@ -323,7 +299,7 @@ mod tests {
         let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
         assert_eq!(
             build_result,
-            Ok(vec![
+            ShimResult::ok_from(vec![
                 String::from(RUN0_CMD),
                 String::from("--property=LimitNOFILE=1000"),
                 String::from("--"),
@@ -337,7 +313,7 @@ mod tests {
         let cli = Cli::parse_from(["sudo", "-i"]);
         let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
         assert!(build_result.is_ok());
-        let args = build_result.unwrap();
+        let args = build_result.unwrap().cli;
         assert!(args[0] == RUN0_CMD);
         assert!(args.contains(&String::from("--chdir=~")));
         assert!(args.contains(&String::from("--via-shell")));
@@ -349,7 +325,7 @@ mod tests {
         let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
         assert_eq!(
             build_result,
-            Ok(vec![
+            ShimResult::ok_from(vec![
                 String::from(RUN0_CMD),
                 String::from("--setenv=foo"),
                 String::from("--setenv=bar"),
@@ -373,17 +349,21 @@ mod tests {
                 String::from("baz"),
             ],
         );
+        assert!(build_result.is_ok());
+        let res = build_result.unwrap();
         assert_eq!(
-            build_result,
-            Ok(vec![
+            res.cli,
+            vec![
                 String::from(RUN0_CMD),
                 String::from("--setenv=foo"),
                 String::from("--setenv=bar"),
                 String::from("--setenv=baz"),
                 String::from("--"),
                 String::from("prog")
-            ])
+            ]
         );
+        assert!(res.get_stderr().contains("Potentially insecure use of -E"));
+        assert!(res.get_stdout().is_empty());
     }
 
     #[test]
@@ -399,14 +379,18 @@ mod tests {
                 String::from("PYTHONPATH"),
             ],
         );
+        assert!(build_result.is_ok());
+        let res = build_result.unwrap();
         assert_eq!(
-            build_result,
-            Ok(vec![
+            res.cli,
+            vec![
                 String::from(RUN0_CMD),
                 String::from("--"),
                 String::from("prog")
-            ])
+            ]
         );
+        assert!(res.get_stderr().contains("Potentially insecure use of -E"));
+        assert!(res.get_stdout().is_empty());
     }
 
     #[test]
@@ -415,7 +399,7 @@ mod tests {
         let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
         assert_eq!(
             build_result,
-            Ok(vec![
+            ShimResult::ok_from(vec![
                 String::from(RUN0_CMD),
                 String::from("--setenv=foo=42"),
                 String::from("--setenv=bar=buzz"),
@@ -432,7 +416,7 @@ mod tests {
         let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
         assert_eq!(
             build_result,
-            Ok(vec![
+            ShimResult::ok_from(vec![
                 String::from(RUN0_CMD),
                 String::from("--"),
                 String::from("env"),
@@ -449,7 +433,7 @@ mod tests {
         let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
         assert_eq!(
             build_result,
-            Ok(vec![
+            ShimResult::ok_from(vec![
                 String::from(RUN0_CMD),
                 String::from("--setenv=foo=42"),
                 String::from("--"),
@@ -465,7 +449,7 @@ mod tests {
         let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
         assert_eq!(
             build_result,
-            Ok(vec![
+            ShimResult::ok_from(vec![
                 String::from(RUN0_CMD),
                 String::from("--setenv=foo=42"),
                 String::from("--"),
@@ -481,7 +465,7 @@ mod tests {
         let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
         assert_eq!(
             build_result,
-            Ok(vec![
+            ShimResult::ok_from(vec![
                 String::from(RUN0_CMD),
                 String::from("--user=1000"), // -g should maintain spawning user
                 String::from("--group=dialout"),
@@ -497,7 +481,7 @@ mod tests {
         let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
         assert_eq!(
             build_result,
-            Ok(vec![
+            ShimResult::ok_from(vec![
                 String::from(RUN0_CMD),
                 String::from("--user=root"),
                 String::from("--group=dialout"),
@@ -513,7 +497,7 @@ mod tests {
         let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
         assert_eq!(
             build_result,
-            Ok(vec![
+            ShimResult::ok_from(vec![
                 String::from(RUN0_CMD),
                 String::from("--user=0"),
                 String::from("--"),
@@ -528,7 +512,7 @@ mod tests {
         let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
         assert_eq!(
             build_result,
-            Ok(vec![
+            ShimResult::ok_from(vec![
                 String::from(RUN0_CMD),
                 String::from("--user=root"),
                 String::from("--"),
@@ -543,7 +527,7 @@ mod tests {
         let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
         assert_eq!(
             build_result,
-            Ok(vec![
+            ShimResult::ok_from(vec![
                 String::from(RUN0_CMD),
                 String::from("--no-ask-password"),
                 String::from("--"),
@@ -558,7 +542,7 @@ mod tests {
         let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
         assert_eq!(
             build_result,
-            Ok(vec![
+            ShimResult::ok_from(vec![
                 String::from(RUN0_CMD),
                 String::from("--via-shell"),
                 String::from("--"),
@@ -573,7 +557,7 @@ mod tests {
         let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
         assert_eq!(
             build_result,
-            Ok(vec![
+            ShimResult::ok_from(vec![
                 String::from(RUN0_CMD),
                 String::from("--via-shell"),
                 String::from("--"),
@@ -587,7 +571,7 @@ mod tests {
         let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
         assert_eq!(
             build_result,
-            Ok(vec![
+            ShimResult::ok_from(vec![
                 String::from(RUN0_CMD),
                 String::from("--property=RuntimeMaxSec=1000"),
                 String::from("--"),
@@ -602,7 +586,7 @@ mod tests {
         let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
         assert_eq!(
             build_result,
-            Ok(vec![
+            ShimResult::ok_from(vec![
                 String::from(RUN0_CMD),
                 String::from("--"),
                 String::from(TRUE_CMD)
@@ -616,7 +600,7 @@ mod tests {
         let build_result = parse_to_run0_cli(cli, None, 1000, vec![]);
         assert_eq!(
             build_result,
-            Ok(vec![
+            ShimResult::ok_from(vec![
                 String::from(RUN0_CMD),
                 String::from("--background=42"),
                 String::from("--"),

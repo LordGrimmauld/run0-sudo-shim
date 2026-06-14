@@ -1,38 +1,18 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 mod args;
-use std::{
-    env,
-    os::unix::process::CommandExt,
-    process::{Command, exit},
-};
+use std::{env, os::unix::process::CommandExt, process::Command};
 
 use crate::args::Cli;
 use clap::Parser;
 use users::get_current_uid;
 
-mod builder;
-use crate::builder::*;
-
-pub fn die(msg: &str) -> ! {
-    eprintln!("run0-sudo-shim: {msg}");
-    exit(1)
-}
+mod common;
+mod sudo;
+use crate::common::*;
 
 fn main() {
     let cli = Cli::parse();
-
-    if cli.askpass {
-        eprintln!("run0-sudo-shim: --askpass is currently ignored");
-    }
-
-    if cli.prompt.is_some() {
-        eprintln!("run0-sudo-shim: --prompt is currently ignored");
-    }
-
-    if cli.bell && !cli.non_interactive {
-        print!("\x07");
-    }
 
     let cwd = env::current_dir()
         .map(|p| p.to_string_lossy().into_owned())
@@ -40,17 +20,11 @@ fn main() {
 
     let env = env::vars().map(|(key, _)| key).collect();
 
-    let mut cli = match parse_to_run0_cli(cli, cwd, get_current_uid(), env) {
-        Ok(cli) => cli.into_iter(),
-        Err(e) => match e {
-            Error::PrintHelp => {
-                let mut cmd = clap::Command::new(env!("CARGO_PKG_NAME"));
-                cmd.print_help().ok();
-                exit(1);
-            }
-            _ => die(&format!("{}", e)),
-        },
-    };
+    let mut cli = ShimResult::finalize(
+        sudo::parse_to_run0_cli(cli, cwd, get_current_uid(), env),
+        env!("CARGO_PKG_NAME"),
+    )
+    .into_iter();
 
     let program = cli.next().unwrap_or_else(|| die("unable to construct cli"));
 
