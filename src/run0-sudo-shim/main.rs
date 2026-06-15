@@ -21,15 +21,10 @@ fn main() {
 
     let env = env::vars().map(|(key, _)| key).collect();
 
-    let mut cli = match cli.command {
-        Commands::Sudo(args) => {
-            ShimResult::finalize(
-                sudo::parse_to_run0_cli(args, cwd, get_current_uid(), env, cli.run0_extra_args),
-                "sudo",
-            )
-        }
-        .into_iter(),
-    };
+    let mut cli = cli
+        .parse_to_run0_cli(cwd, get_current_uid(), env)
+        .finalize()
+        .into_iter();
 
     let program = cli.next().unwrap_or_else(|| die("unable to construct cli"));
 
