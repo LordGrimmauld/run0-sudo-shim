@@ -11,6 +11,7 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
+    #[cfg(feature = "sudo")]
     #[command(alias = "run0-sudo-shim")]
     Sudo(sudo::SudoCli),
 }
@@ -23,6 +24,7 @@ impl Cli {
         current_env: Vec<String>,
     ) -> Run0Cli {
         match self.command {
+            #[cfg(feature = "sudo")]
             Commands::Sudo(args) => Run0Cli::new(
                 sudo::parse_to_run0_cli(args, cwd, current_uid, current_env),
                 clap::Command::new("sudo"),
