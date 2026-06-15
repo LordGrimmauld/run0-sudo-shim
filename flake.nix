@@ -235,6 +235,8 @@
               ];
               system.stateVersion = "26.05";
               virtualisation.graphics = false;
+              security.sudo.enable = true;
+              security.doas.enable = true;
               users.users = {
                 admin = {
                   isNormalUser = true;
