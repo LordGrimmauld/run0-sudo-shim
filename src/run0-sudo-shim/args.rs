@@ -6,7 +6,7 @@ use crate::{common::Run0Cli, sudo};
 #[command(multicall = true, version=env!("CARGO_PKG_VERSION"),about=env!("CARGO_PKG_DESCRIPTION"), author=env!("CARGO_PKG_AUTHORS"))]
 pub struct Cli {
     #[command(subcommand)]
-    pub command: Commands,
+    command: Commands,
 
     /// an extra argument to pass to run0 (can be specified multiple times)
     #[clap(long = "run0-extra-arg", allow_hyphen_values = true, global = true)]
@@ -14,7 +14,7 @@ pub struct Cli {
 }
 
 #[derive(Debug, Subcommand)]
-pub enum Commands {
+enum Commands {
     #[command(alias = "run0-sudo-shim")]
     Sudo(sudo::SudoCli),
 }

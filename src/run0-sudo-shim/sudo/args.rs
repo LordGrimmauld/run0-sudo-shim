@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
-use clap::{ArgAction, Parser};
+use clap::{ArgAction, Args};
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Args)]
 #[clap(name="sudo", version=env!("CARGO_PKG_VERSION"),about=env!("CARGO_PKG_DESCRIPTION"), author=env!("CARGO_PKG_AUTHORS"))]
 pub struct SudoCli {
     /// [IGNORED] use a helper program for password prompting

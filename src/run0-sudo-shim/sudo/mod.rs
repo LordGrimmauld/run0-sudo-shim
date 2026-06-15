@@ -243,11 +243,12 @@ mod tests {
     use clap::Parser;
 
     use super::*;
+    use crate::args::Cli;
 
     #[test]
     fn test_prog() {
-        let cli = SudoCli::parse_from(["sudo", "prog"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo", "prog"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
@@ -259,15 +260,15 @@ mod tests {
     }
     #[test]
     fn test_bare() {
-        let cli = SudoCli::parse_from(["sudo"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(build_result, Err(Error::PrintHelp));
     }
 
     #[test]
     fn test_chdir() {
-        let cli = SudoCli::parse_from(["sudo", "-D", "/foo", "prog"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo", "-D", "/foo", "prog"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
@@ -281,8 +282,8 @@ mod tests {
 
     #[test]
     fn test_stdin() {
-        let cli = SudoCli::parse_from(["sudo", "--stdin", "prog"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo", "--stdin", "prog"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
@@ -298,8 +299,8 @@ mod tests {
 
     #[test]
     fn test_close_from() {
-        let cli = SudoCli::parse_from(["sudo", "-C", "1000", "prog"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo", "-C", "1000", "prog"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
@@ -313,8 +314,8 @@ mod tests {
 
     #[test]
     fn test_interactive() {
-        let cli = SudoCli::parse_from(["sudo", "-i"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo", "-i"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert!(build_result.is_ok());
         let args = build_result.unwrap().cli;
         assert!(args[0] == RUN0_CMD);
@@ -324,8 +325,8 @@ mod tests {
 
     #[test]
     fn test_preserve_env_selective() {
-        let cli = SudoCli::parse_from(["sudo", "--preserve-env=foo,bar,baz", "prog"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo", "--preserve-env=foo,bar,baz", "prog"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
@@ -341,18 +342,18 @@ mod tests {
 
     #[test]
     fn test_preserve_env_global() {
-        let cli = SudoCli::parse_from(["sudo", "-E", "prog"]);
-        let build_result = parse_to_run0_cli(
-            cli,
-            None,
-            1000,
-            vec![
-                String::from("foo"),
-                String::from("bar"),
-                String::from("baz"),
-            ],
-            vec![],
-        );
+        let cli = Cli::parse_from(["sudo", "-E", "prog"]);
+        let build_result = cli
+            .parse_to_run0_cli(
+                None,
+                1000,
+                vec![
+                    String::from("foo"),
+                    String::from("bar"),
+                    String::from("baz"),
+                ],
+            )
+            .res;
         assert!(build_result.is_ok());
         let res = build_result.unwrap();
         assert_eq!(
@@ -372,18 +373,18 @@ mod tests {
 
     #[test]
     fn test_preserve_env_global_strip() {
-        let cli = SudoCli::parse_from(["sudo", "-E", "prog"]);
-        let build_result = parse_to_run0_cli(
-            cli,
-            None,
-            1000,
-            vec![
-                String::from("LD_LIBRARY_PATH"),
-                String::from("LD_PRELOAD"),
-                String::from("PYTHONPATH"),
-            ],
-            vec![],
-        );
+        let cli = Cli::parse_from(["sudo", "-E", "prog"]);
+        let build_result = cli
+            .parse_to_run0_cli(
+                None,
+                1000,
+                vec![
+                    String::from("LD_LIBRARY_PATH"),
+                    String::from("LD_PRELOAD"),
+                    String::from("PYTHONPATH"),
+                ],
+            )
+            .res;
         assert!(build_result.is_ok());
         let res = build_result.unwrap();
         assert_eq!(
@@ -400,8 +401,8 @@ mod tests {
 
     #[test]
     fn test_set_env_prefix() {
-        let cli = SudoCli::parse_from(["sudo", "foo=42", "bar=buzz", "prog"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo", "foo=42", "bar=buzz", "prog"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
@@ -417,8 +418,8 @@ mod tests {
     #[test]
     fn test_set_env_prefix_after_command() {
         // regression test for https://github.com/LordGrimmauld/run0-sudo-shim/issues/20
-        let cli = SudoCli::parse_from(["sudo", "env", "-i", "foo=42", "ls"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo", "env", "-i", "foo=42", "ls"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
@@ -434,8 +435,8 @@ mod tests {
 
     #[test]
     fn test_set_env_prefix_skips_weird_1() {
-        let cli = SudoCli::parse_from(["sudo", "foo=42", "=bar=buzz", "prog"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo", "foo=42", "=bar=buzz", "prog"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
@@ -450,8 +451,8 @@ mod tests {
 
     #[test]
     fn test_set_env_prefix_skips_weird_2() {
-        let cli = SudoCli::parse_from(["sudo", "foo=42", "/bar=buzz", "prog"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo", "foo=42", "/bar=buzz", "prog"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
@@ -466,8 +467,8 @@ mod tests {
 
     #[test]
     fn test_group() {
-        let cli = SudoCli::parse_from(["sudo", "-g", "dialout", "prog"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo", "-g", "dialout", "prog"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
@@ -482,8 +483,8 @@ mod tests {
 
     #[test]
     fn test_group_and_user() {
-        let cli = SudoCli::parse_from(["sudo", "-g", "dialout", "-u", "root", "prog"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo", "-g", "dialout", "-u", "root", "prog"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
@@ -498,8 +499,8 @@ mod tests {
 
     #[test]
     fn test_numeric_user() {
-        let cli = SudoCli::parse_from(["sudo", "-u", "#0", "prog"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo", "-u", "#0", "prog"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
@@ -513,8 +514,8 @@ mod tests {
 
     #[test]
     fn test_named_user() {
-        let cli = SudoCli::parse_from(["sudo", "-u", "root", "prog"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo", "-u", "root", "prog"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
@@ -528,8 +529,8 @@ mod tests {
 
     #[test]
     fn test_non_interactive() {
-        let cli = SudoCli::parse_from(["sudo", "-n", "prog"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo", "-n", "prog"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
@@ -543,8 +544,8 @@ mod tests {
 
     #[test]
     fn test_shell_command() {
-        let cli = SudoCli::parse_from(["sudo", "-s", "prog"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo", "-s", "prog"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
@@ -558,8 +559,8 @@ mod tests {
 
     #[test]
     fn test_shell_bare() {
-        let cli = SudoCli::parse_from(["sudo", "-s"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo", "-s"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
@@ -572,8 +573,8 @@ mod tests {
 
     #[test]
     fn test_timeout() {
-        let cli = SudoCli::parse_from(["sudo", "-T", "1000", "prog"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo", "-T", "1000", "prog"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
@@ -587,8 +588,8 @@ mod tests {
 
     #[test]
     fn test_validate() {
-        let cli = SudoCli::parse_from(["sudo", "-v"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo", "-v"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
@@ -600,10 +601,9 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs more work"]
     fn test_extra_arg() {
-        let cli = SudoCli::parse_from(["sudo", "--run0-extra-arg=--background=42", "prog"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo", "--run0-extra-arg=--background=42", "prog"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
@@ -621,11 +621,12 @@ mod unsupported {
     use clap::Parser;
 
     use super::*;
+    use crate::args::Cli;
 
     #[test]
     fn test_background_unsupported() {
-        let cli = SudoCli::parse_from(["sudo", "-b"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo", "-b"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(
             build_result,
             Err(Error::Unsupported(String::from("--background")))
@@ -634,8 +635,8 @@ mod unsupported {
 
     #[test]
     fn test_edit_unsupported() {
-        let cli = SudoCli::parse_from(["sudo", "-e"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo", "-e"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(
             build_result,
             Err(Error::Unsupported(String::from("--edit")))
@@ -644,8 +645,8 @@ mod unsupported {
 
     #[test]
     fn test_host_unsupported() {
-        let cli = SudoCli::parse_from(["sudo", "--host", "foo"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo", "--host", "foo"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(
             build_result,
             Err(Error::Unsupported(String::from("--host")))
@@ -654,8 +655,8 @@ mod unsupported {
 
     #[test]
     fn test_remove_timestamp_unsupported() {
-        let cli = SudoCli::parse_from(["sudo", "-K"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo", "-K"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(
             build_result,
             Err(Error::Unsupported(String::from(
@@ -666,8 +667,8 @@ mod unsupported {
 
     #[test]
     fn test_reset_timestamp_unsupported() {
-        let cli = SudoCli::parse_from(["sudo", "-k"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo", "-k"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(
             build_result,
             Err(Error::Unsupported(String::from(
@@ -678,8 +679,8 @@ mod unsupported {
 
     #[test]
     fn test_list_unsupported() {
-        let cli = SudoCli::parse_from(["sudo", "-l"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo", "-l"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(
             build_result,
             Err(Error::Unsupported(String::from("list mode")))
@@ -688,8 +689,8 @@ mod unsupported {
 
     #[test]
     fn test_preserve_group_unsupported() {
-        let cli = SudoCli::parse_from(["sudo", "-P"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo", "-P"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(
             build_result,
             Err(Error::Unsupported(String::from("--preserve-groups")))
@@ -698,8 +699,8 @@ mod unsupported {
 
     #[test]
     fn test_chroot_unsupported() {
-        let cli = SudoCli::parse_from(["sudo", "-R", "/"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo", "-R", "/"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(
             build_result,
             Err(Error::Unsupported(String::from("--chroot")))
@@ -709,8 +710,8 @@ mod unsupported {
     #[test]
     fn test_other_user_unsupported() {
         // FIXME: This should probably not even be legal CLI input
-        let cli = SudoCli::parse_from(["sudo", "-U", "alice"]);
-        let build_result = parse_to_run0_cli(cli, None, 1000, vec![], vec![]);
+        let cli = Cli::parse_from(["sudo", "-U", "alice"]);
+        let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(
             build_result,
             Err(Error::Unsupported(String::from("list mode")))
