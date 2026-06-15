@@ -7,10 +7,6 @@ use crate::{common::Run0Cli, sudo};
 pub struct Cli {
     #[command(subcommand)]
     command: Commands,
-
-    /// an extra argument to pass to run0 (can be specified multiple times)
-    #[clap(long = "run0-extra-arg", allow_hyphen_values = true, global = true)]
-    pub run0_extra_args: Vec<String>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -28,7 +24,7 @@ impl Cli {
     ) -> Run0Cli {
         match self.command {
             Commands::Sudo(args) => Run0Cli::new(
-                sudo::parse_to_run0_cli(args, cwd, current_uid, current_env, self.run0_extra_args),
+                sudo::parse_to_run0_cli(args, cwd, current_uid, current_env),
                 clap::Command::new("sudo"),
             ),
         }

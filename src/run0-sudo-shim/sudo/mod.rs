@@ -97,7 +97,6 @@ pub fn parse_to_run0_cli(
     cwd: Option<String>,
     current_uid: uid_t,
     current_env: Vec<String>,
-    run0_extra_args: Vec<String>,
 ) -> Result<ShimResult, Error> {
     // Maybe migrate to `systemd-run --wait -P -q -G` ?
     if cli.edit {
@@ -224,7 +223,7 @@ pub fn parse_to_run0_cli(
             .push(format!("--property=RuntimeMaxSec={timeout_secs}"));
     }
 
-    buf.cli.extend(run0_extra_args);
+    buf.cli.extend(cli.run0_extra_args);
     buf.cli.push(String::from("--"));
 
     if cli.validate {
