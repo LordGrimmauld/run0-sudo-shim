@@ -80,16 +80,33 @@ impl ShimResult {
         &self.stdout
     }
 
+    pub fn push_stderr(&mut self, line: impl std::fmt::Display) {
+        use std::fmt::Write;
+        write!(self.stderr, "{line}").unwrap();
+    }
+    pub fn push_stdout(&mut self, line: impl std::fmt::Display) {
+        use std::fmt::Write;
+        write!(self.stderr, "{line}").unwrap();
+    }
+}
+
+pub struct Run0Cli {
+    pub res: Result<ShimResult, Error>,
+    cmd: clap::Command,
+}
+
+impl Run0Cli {
+    pub fn new(res: Result<ShimResult, Error>, cmd: clap::Command) -> Self {
+        Self { res, cmd }
+    }
+
     // CAN EXIT(1)
-    pub fn finalize(
-        res: Result<ShimResult, Error>,
-        argv0: impl Into<clap::builder::Str>,
-    ) -> Vec<String> {
-        let res = match res {
+    pub fn finalize(mut self) -> Vec<String> {
+        let res = match self.res {
             Ok(res) => res,
             Err(e) => match e {
                 Error::PrintHelp => {
-                    clap::Command::new(argv0).print_help().ok();
+                    self.cmd.print_help().ok();
                     exit(1);
                 }
                 _ => die(&format!("{}", e)),
@@ -102,14 +119,5 @@ impl ShimResult {
             println!("{}", res.stdout);
         }
         res.cli
-    }
-
-    pub fn push_stderr(&mut self, line: impl std::fmt::Display) {
-        use std::fmt::Write;
-        write!(self.stderr, "{line}").unwrap();
-    }
-    pub fn push_stdout(&mut self, line: impl std::fmt::Display) {
-        use std::fmt::Write;
-        write!(self.stderr, "{line}").unwrap();
     }
 }
