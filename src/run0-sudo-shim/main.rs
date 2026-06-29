@@ -12,6 +12,22 @@ mod sudo;
 use crate::args::*;
 use crate::common::*;
 
+impl Cli {
+    pub fn parse_to_run0_cli(
+        self,
+        cwd: Option<String>,
+        current_uid: users::uid_t,
+        current_env: Vec<String>,
+    ) -> Run0Cli {
+        match self.command {
+            crate::Commands::Sudo(args) => Run0Cli::new(
+                sudo::parse_to_run0_cli(args, cwd, current_uid, current_env),
+                clap::Command::new("sudo"),
+            ),
+        }
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
 
