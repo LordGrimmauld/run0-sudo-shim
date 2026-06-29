@@ -49,6 +49,7 @@
           rustPlatform,
           polkit-stdin-agent,
           systemd,
+          installShellFiles,
         }:
         rustPlatform.buildRustPackage {
           inherit name;
@@ -59,6 +60,10 @@
           strictDeps = true;
           __structuredAttrs = true;
 
+          nativeBuildInputs = [
+            installShellFiles
+          ];
+
           env = {
             POLKIT_STDIN_AGENT = lib.getExe polkit-stdin-agent;
             RUN0 = lib.getExe' systemd "run0";
@@ -67,6 +72,7 @@
 
           postInstall = ''
             ln -s $out/bin/${name} $out/bin/sudo
+            installManPage target/tmp/run0-sudo-shim/manpage/*
           '';
 
           meta = {
