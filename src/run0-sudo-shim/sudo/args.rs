@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
-use clap::{ArgAction, Args};
+use clap::{ArgAction, Args, ValueHint};
 
 #[derive(Debug, Args)]
 #[clap(name="sudo", version=env!("CARGO_PKG_VERSION"),about=env!("CARGO_PKG_DESCRIPTION"), author=env!("CARGO_PKG_AUTHORS"))]
@@ -91,11 +91,11 @@ pub struct SudoCli {
     pub command_timeout: Option<String>,
 
     /// [UNSUPPORTED] in list mode, display privileges for user
-    #[clap(long, short = 'U')]
+    #[clap(long, short = 'U', value_hint = ValueHint::Username)]
     pub other_user: Option<String>,
 
     /// run command (or edit file) as specified user name or ID
-    #[clap(long, short)]
+    #[clap(long, short, value_hint = ValueHint::Username)]
     pub user: Option<String>,
 
     /// validate a root login
@@ -107,6 +107,6 @@ pub struct SudoCli {
     pub run0_extra_args: Vec<String>,
 
     /// command to be executed
-    #[arg(last(false), allow_hyphen_values = true)]
-    pub command: Vec<String>,
+    #[arg(allow_hyphen_values = true, value_hint = ValueHint::CommandWithArguments, trailing_var_arg(true), num_args=1..)]
+    pub command: Option<Vec<String>>,
 }

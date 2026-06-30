@@ -185,7 +185,7 @@ pub fn parse_to_run0_cli(
     }
 
     let mut env_var_prefix_split_idx: usize = 0;
-    for arg in cli.command.iter() {
+    for arg in cli.command.iter().flat_map(|args| args.iter()) {
         if arg.contains("=") && !arg.starts_with("=") && !arg.starts_with("/") {
             env_var_prefix_split_idx += 1;
         } else {
@@ -193,7 +193,11 @@ pub fn parse_to_run0_cli(
         }
     }
 
-    let (extra_env_vars, command) = cli.command.split_at(env_var_prefix_split_idx);
+    let (extra_env_vars, command) = if let Some(command) = &cli.command {
+        command.split_at(env_var_prefix_split_idx)
+    } else {
+        (&[] as &[String], &[] as &[String])
+    };
 
     let env_var_flags = extra_env_vars
         .iter()
@@ -260,6 +264,9 @@ mod tests {
     #[test]
     fn test_bare() {
         let cli = Cli::parse_from(["sudo"]);
+        assert!(matches!(cli.command, crate::Commands::Sudo(_)));
+        let crate::Commands::Sudo(sudo_cli) = &cli.command;
+        assert!(sudo_cli.command.is_none());
         let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(build_result, Err(Error::PrintHelp));
     }

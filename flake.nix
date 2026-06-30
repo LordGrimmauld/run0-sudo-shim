@@ -73,6 +73,9 @@
           postInstall = ''
             ln -s $out/bin/${name} $out/bin/sudo
             installManPage target/tmp/run0-sudo-shim/manpage/*
+            installShellCompletion \
+              target/tmp/run0-sudo-shim/completion/sudo.{bash,fish} \
+              --zsh target/tmp/run0-sudo-shim/completion/_sudo
           '';
 
           meta = {
