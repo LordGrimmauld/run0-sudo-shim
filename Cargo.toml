@@ -4,6 +4,7 @@ path = "src/run0-sudo-shim/main.rs"
 
 [build-dependencies]
 clap_mangen = "0.3.0"
+clap_complete = "4.6.5"
 clap = {version = "4.5.4", features = ["derive"]}
 
 [dependencies]

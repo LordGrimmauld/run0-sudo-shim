@@ -9,15 +9,21 @@ mod sudo;
 
 use clap::CommandFactory;
 
+use clap_complete::{generate_to, shells::Shell};
+
 use crate::args::Cli;
 
 static COMMANDS: [(&str, &str); 1] = [("sudo", "8")];
 
 // inspired and adapted from bottom man page generation: https://github.com/ClementTsang/bottom/blob/d3c2223e5122079b04e72baf86f21397b35620ec/build.rs#L39-L77
 fn main() -> io::Result<()> {
+    let completion_dir =
+        option_env!("COMPLETION_DIR").unwrap_or("./target/tmp/run0-sudo-shim/completion/");
     let manpage_dir = option_env!("MANPAGE_DIR").unwrap_or("./target/tmp/run0-sudo-shim/manpage/");
     let manpage_out_dir = PathBuf::from(manpage_dir);
+    let completion_out_dir = PathBuf::from(completion_dir);
     fs::create_dir_all(&manpage_out_dir)?;
+    fs::create_dir_all(&completion_out_dir)?;
 
     let mut root = Cli::command();
 
@@ -29,6 +35,10 @@ fn main() -> io::Result<()> {
             let mut buffer: Vec<u8> = Default::default();
             man.render(&mut buffer)?;
             fs::write(manpage_out_dir.join(filename), buffer)?;
+
+            generate_to(Shell::Bash, sub, name, &completion_out_dir)?;
+            generate_to(Shell::Zsh, sub, name, &completion_out_dir)?;
+            generate_to(Shell::Fish, sub, name, &completion_out_dir)?;
         }
     }
 
