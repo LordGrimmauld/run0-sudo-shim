@@ -107,6 +107,6 @@ pub struct SudoCli {
     pub run0_extra_args: Vec<String>,
 
     /// command to be executed
-    #[arg(last(false), allow_hyphen_values = true, value_hint = ValueHint::CommandWithArguments, trailing_var_arg(true))]
-    pub command: Vec<String>,
+    #[arg(allow_hyphen_values = true, value_hint = ValueHint::CommandWithArguments, trailing_var_arg(true), num_args=1..)]
+    pub command: Option<Vec<String>>,
 }
