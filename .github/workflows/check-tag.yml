@@ -1,0 +1,31 @@
+name: check-tags
+on:
+  push:
+    tags:
+      - '*.*.*'
+jobs:
+  check-tags:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Update local toolchain
+        run: |
+          rustup update
+          rustup component add clippy
+          rustup install stable
+      - name: Verify tag
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+
+          if ! [[ "$TAG" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Tag '$TAG' is not valid semver"
+            exit 0 # ignored
+          fi
+
+          if ! cargo metadata --no-deps --format-version=1 |
+              jq -e --arg tag "$TAG" '.packages[0].version == $tag' >/dev/null
+          then
+              echo "Tag version ($TAG) does not match Cargo.toml"
+              exit 1
+          fi
