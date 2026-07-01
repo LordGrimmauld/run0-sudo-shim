@@ -1,11 +1,8 @@
-  name: rust-build
-
+name: rust-build
 # This workflow run tests and build for each push
-
 on:
   pull_request:
   push:
-
 jobs:
   rust-build:
     runs-on: ubuntu-latest
