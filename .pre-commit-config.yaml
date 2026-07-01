@@ -1,0 +1,18 @@
+repos:
+  - repo: local
+    hooks:
+      - id: cargo-check
+        name: cargo check
+        entry: cargo check --offline
+        language: system
+        pass_filenames: false
+      - id: nix-fmt
+        name: nix fmt
+        entry: nix fmt
+        language: system
+        pass_filenames: false
+      - id: cargo-clippy
+        name: cargo clippy
+        entry: cargo clippy --all-targets -- -D warnings
+        language: system
+        pass_filenames: false

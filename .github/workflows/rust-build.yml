@@ -1,11 +1,8 @@
 name: rust-build
-
 # This workflow run tests and build for each push
-
 on:
   pull_request:
   push:
-
 jobs:
   rust-build:
     runs-on: ubuntu-latest
@@ -23,6 +20,7 @@ jobs:
           cargo clippy --version
       - name: Lint
         run: |
+          cargo check --locked
           cargo fmt -- --check
           cargo clippy -- -D warnings
       - name: Test

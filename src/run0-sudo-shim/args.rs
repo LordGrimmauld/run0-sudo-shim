@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: BSD-3-Clause
+
 use clap::{Parser, Subcommand};
 
 #[derive(Debug, Parser)]
