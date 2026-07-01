@@ -1,4 +1,4 @@
-name: rust-build
+  name: rust-build
 
 # This workflow run tests and build for each push
 
@@ -23,6 +23,7 @@ jobs:
           cargo clippy --version
       - name: Lint
         run: |
+          cargo check --locked
           cargo fmt -- --check
           cargo clippy -- -D warnings
       - name: Test
