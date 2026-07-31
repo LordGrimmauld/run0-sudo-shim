@@ -265,7 +265,10 @@ mod tests {
     fn test_bare() {
         let cli = Cli::parse_from(["sudo"]);
         assert!(matches!(cli.command, crate::Commands::Sudo(_)));
-        let crate::Commands::Sudo(sudo_cli) = &cli.command;
+        #[allow(irrefutable_let_patterns)]
+        let crate::Commands::Sudo(sudo_cli) = &cli.command else {
+            unreachable!()
+        };
         assert!(sudo_cli.command.is_none());
         let build_result = cli.parse_to_run0_cli(None, 1000, vec![]).res;
         assert_eq!(build_result, Err(Error::PrintHelp));
