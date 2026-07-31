@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
+use std::ffi::OsString;
+
 use users::uid_t;
 
 use crate::common::*;
@@ -147,15 +149,15 @@ pub fn parse_to_run0_cli(
     }
 
     if cli.stdin {
-        buf.cli.push(String::from(POLKIT_STDIN_AGENT));
-        buf.cli.push(String::from("--password-fd=0"));
-        buf.cli.push(String::from("--"));
+        buf.cli.push(OsString::from(POLKIT_STDIN_AGENT));
+        buf.cli.push(OsString::from("--password-fd=0"));
+        buf.cli.push(OsString::from("--"));
     }
 
-    buf.cli.push(String::from(RUN0_CMD));
+    buf.cli.push(OsString::from(RUN0_CMD));
 
     if cli.shell || cli.login {
-        buf.cli.push(String::from("--via-shell"));
+        buf.cli.push(OsString::from("--via-shell"));
     }
 
     if let Some(work_dir) = cli.working_directory.or(if cli.login {
@@ -163,25 +165,30 @@ pub fn parse_to_run0_cli(
     } else {
         cwd
     }) {
-        buf.cli.push(format!("--chdir={work_dir}"));
+        buf.cli.push(OsString::from(format!("--chdir={work_dir}")));
     }
 
     if cli.non_interactive {
-        buf.cli.push(String::from("--no-ask-password"))
+        buf.cli.push(OsString::from("--no-ask-password"))
     }
 
     if let Some(user) = cli.user {
         // FIXME: handle numerics safely
-        buf.cli
-            .push(format!("--user={}", user.trim_start_matches('#')))
+        buf.cli.push(OsString::from(format!(
+            "--user={}",
+            user.trim_start_matches('#')
+        )))
     } else if cli.group.is_some() {
-        buf.cli.push(format!("--user={}", current_uid))
+        buf.cli
+            .push(OsString::from(format!("--user={}", current_uid)))
     }
 
     if let Some(group) = cli.group {
         // FIXME: handle numerics safely
-        buf.cli
-            .push(format!("--group={}", group.trim_start_matches('#')))
+        buf.cli.push(OsString::from(format!(
+            "--group={}",
+            group.trim_start_matches('#')
+        )))
     }
 
     let mut env_var_prefix_split_idx: usize = 0;
@@ -213,27 +220,29 @@ pub fn parse_to_run0_cli(
                 vars
             }
         }))
-        .map(|e| format!("--setenv={e}"));
+        .map(|e| OsString::from(format!("--setenv={e}")));
 
     buf.cli.extend(env_var_flags);
 
     if let Some(limit_nofile) = cli.file_descriptor_limit {
-        buf.cli
-            .push(format!("--property=LimitNOFILE={limit_nofile}"));
+        buf.cli.push(OsString::from(format!(
+            "--property=LimitNOFILE={limit_nofile}"
+        )));
     }
 
     if let Some(timeout_secs) = cli.command_timeout {
-        buf.cli
-            .push(format!("--property=RuntimeMaxSec={timeout_secs}"));
+        buf.cli.push(OsString::from(format!(
+            "--property=RuntimeMaxSec={timeout_secs}"
+        )));
     }
 
     buf.cli.extend(cli.run0_extra_args);
-    buf.cli.push(String::from("--"));
+    buf.cli.push(OsString::from("--"));
 
     if cli.validate {
-        buf.cli.push(String::from(TRUE_CMD));
+        buf.cli.push(OsString::from(TRUE_CMD));
     } else if !command.is_empty() {
-        buf.cli.extend(command.to_vec());
+        buf.cli.extend(command.iter().map(OsString::from));
     } else if !(cli.shell || cli.login) {
         return Err(Error::PrintHelp);
     }
@@ -255,9 +264,9 @@ mod tests {
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
-                String::from(RUN0_CMD),
-                String::from("--"),
-                String::from("prog")
+                OsString::from(RUN0_CMD),
+                OsString::from("--"),
+                OsString::from("prog")
             ])
         );
     }
@@ -281,10 +290,10 @@ mod tests {
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
-                String::from(RUN0_CMD),
-                String::from("--chdir=/foo"),
-                String::from("--"),
-                String::from("prog")
+                OsString::from(RUN0_CMD),
+                OsString::from("--chdir=/foo"),
+                OsString::from("--"),
+                OsString::from("prog")
             ])
         );
     }
@@ -296,12 +305,12 @@ mod tests {
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
-                String::from(POLKIT_STDIN_AGENT),
-                String::from("--password-fd=0"),
-                String::from("--"),
-                String::from(RUN0_CMD),
-                String::from("--"),
-                String::from("prog")
+                OsString::from(POLKIT_STDIN_AGENT),
+                OsString::from("--password-fd=0"),
+                OsString::from("--"),
+                OsString::from(RUN0_CMD),
+                OsString::from("--"),
+                OsString::from("prog")
             ])
         );
     }
@@ -313,10 +322,10 @@ mod tests {
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
-                String::from(RUN0_CMD),
-                String::from("--property=LimitNOFILE=1000"),
-                String::from("--"),
-                String::from("prog")
+                OsString::from(RUN0_CMD),
+                OsString::from("--property=LimitNOFILE=1000"),
+                OsString::from("--"),
+                OsString::from("prog")
             ])
         );
     }
@@ -328,8 +337,8 @@ mod tests {
         assert!(build_result.is_ok());
         let args = build_result.unwrap().cli;
         assert!(args[0] == RUN0_CMD);
-        assert!(args.contains(&String::from("--chdir=~")));
-        assert!(args.contains(&String::from("--via-shell")));
+        assert!(args.contains(&OsString::from("--chdir=~")));
+        assert!(args.contains(&OsString::from("--via-shell")));
     }
 
     #[test]
@@ -339,12 +348,12 @@ mod tests {
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
-                String::from(RUN0_CMD),
-                String::from("--setenv=foo"),
-                String::from("--setenv=bar"),
-                String::from("--setenv=baz"),
-                String::from("--"),
-                String::from("prog")
+                OsString::from(RUN0_CMD),
+                OsString::from("--setenv=foo"),
+                OsString::from("--setenv=bar"),
+                OsString::from("--setenv=baz"),
+                OsString::from("--"),
+                OsString::from("prog")
             ])
         );
     }
@@ -368,12 +377,12 @@ mod tests {
         assert_eq!(
             res.cli,
             vec![
-                String::from(RUN0_CMD),
-                String::from("--setenv=foo"),
-                String::from("--setenv=bar"),
-                String::from("--setenv=baz"),
-                String::from("--"),
-                String::from("prog")
+                OsString::from(RUN0_CMD),
+                OsString::from("--setenv=foo"),
+                OsString::from("--setenv=bar"),
+                OsString::from("--setenv=baz"),
+                OsString::from("--"),
+                OsString::from("prog")
             ]
         );
         assert!(res.get_stderr().contains("Potentially insecure use of -E"));
@@ -399,9 +408,9 @@ mod tests {
         assert_eq!(
             res.cli,
             vec![
-                String::from(RUN0_CMD),
-                String::from("--"),
-                String::from("prog")
+                OsString::from(RUN0_CMD),
+                OsString::from("--"),
+                OsString::from("prog")
             ]
         );
         assert!(res.get_stderr().contains("Potentially insecure use of -E"));
@@ -415,11 +424,11 @@ mod tests {
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
-                String::from(RUN0_CMD),
-                String::from("--setenv=foo=42"),
-                String::from("--setenv=bar=buzz"),
-                String::from("--"),
-                String::from("prog")
+                OsString::from(RUN0_CMD),
+                OsString::from("--setenv=foo=42"),
+                OsString::from("--setenv=bar=buzz"),
+                OsString::from("--"),
+                OsString::from("prog")
             ])
         );
     }
@@ -432,12 +441,12 @@ mod tests {
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
-                String::from(RUN0_CMD),
-                String::from("--"),
-                String::from("env"),
-                String::from("-i"),
-                String::from("foo=42"),
-                String::from("ls"),
+                OsString::from(RUN0_CMD),
+                OsString::from("--"),
+                OsString::from("env"),
+                OsString::from("-i"),
+                OsString::from("foo=42"),
+                OsString::from("ls"),
             ])
         );
     }
@@ -449,11 +458,11 @@ mod tests {
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
-                String::from(RUN0_CMD),
-                String::from("--setenv=foo=42"),
-                String::from("--"),
-                String::from("=bar=buzz"),
-                String::from("prog")
+                OsString::from(RUN0_CMD),
+                OsString::from("--setenv=foo=42"),
+                OsString::from("--"),
+                OsString::from("=bar=buzz"),
+                OsString::from("prog")
             ])
         );
     }
@@ -465,11 +474,11 @@ mod tests {
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
-                String::from(RUN0_CMD),
-                String::from("--setenv=foo=42"),
-                String::from("--"),
-                String::from("/bar=buzz"),
-                String::from("prog")
+                OsString::from(RUN0_CMD),
+                OsString::from("--setenv=foo=42"),
+                OsString::from("--"),
+                OsString::from("/bar=buzz"),
+                OsString::from("prog")
             ])
         );
     }
@@ -481,11 +490,11 @@ mod tests {
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
-                String::from(RUN0_CMD),
-                String::from("--user=1000"), // -g should maintain spawning user
-                String::from("--group=dialout"),
-                String::from("--"),
-                String::from("prog")
+                OsString::from(RUN0_CMD),
+                OsString::from("--user=1000"), // -g should maintain spawning user
+                OsString::from("--group=dialout"),
+                OsString::from("--"),
+                OsString::from("prog")
             ])
         );
     }
@@ -497,11 +506,11 @@ mod tests {
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
-                String::from(RUN0_CMD),
-                String::from("--user=root"),
-                String::from("--group=dialout"),
-                String::from("--"),
-                String::from("prog")
+                OsString::from(RUN0_CMD),
+                OsString::from("--user=root"),
+                OsString::from("--group=dialout"),
+                OsString::from("--"),
+                OsString::from("prog")
             ])
         );
     }
@@ -513,10 +522,10 @@ mod tests {
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
-                String::from(RUN0_CMD),
-                String::from("--user=0"),
-                String::from("--"),
-                String::from("prog")
+                OsString::from(RUN0_CMD),
+                OsString::from("--user=0"),
+                OsString::from("--"),
+                OsString::from("prog")
             ])
         );
     }
@@ -528,10 +537,10 @@ mod tests {
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
-                String::from(RUN0_CMD),
-                String::from("--user=root"),
-                String::from("--"),
-                String::from("prog")
+                OsString::from(RUN0_CMD),
+                OsString::from("--user=root"),
+                OsString::from("--"),
+                OsString::from("prog")
             ])
         );
     }
@@ -543,10 +552,10 @@ mod tests {
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
-                String::from(RUN0_CMD),
-                String::from("--no-ask-password"),
-                String::from("--"),
-                String::from("prog")
+                OsString::from(RUN0_CMD),
+                OsString::from("--no-ask-password"),
+                OsString::from("--"),
+                OsString::from("prog")
             ])
         );
     }
@@ -558,10 +567,10 @@ mod tests {
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
-                String::from(RUN0_CMD),
-                String::from("--via-shell"),
-                String::from("--"),
-                String::from("prog")
+                OsString::from(RUN0_CMD),
+                OsString::from("--via-shell"),
+                OsString::from("--"),
+                OsString::from("prog")
             ])
         );
     }
@@ -573,9 +582,9 @@ mod tests {
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
-                String::from(RUN0_CMD),
-                String::from("--via-shell"),
-                String::from("--"),
+                OsString::from(RUN0_CMD),
+                OsString::from("--via-shell"),
+                OsString::from("--"),
             ])
         );
     }
@@ -587,10 +596,10 @@ mod tests {
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
-                String::from(RUN0_CMD),
-                String::from("--property=RuntimeMaxSec=1000"),
-                String::from("--"),
-                String::from("prog")
+                OsString::from(RUN0_CMD),
+                OsString::from("--property=RuntimeMaxSec=1000"),
+                OsString::from("--"),
+                OsString::from("prog")
             ])
         );
     }
@@ -602,9 +611,9 @@ mod tests {
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
-                String::from(RUN0_CMD),
-                String::from("--"),
-                String::from(TRUE_CMD)
+                OsString::from(RUN0_CMD),
+                OsString::from("--"),
+                OsString::from(TRUE_CMD)
             ])
         );
     }
@@ -616,10 +625,10 @@ mod tests {
         assert_eq!(
             build_result,
             ShimResult::ok_from(vec![
-                String::from(RUN0_CMD),
-                String::from("--background=42"),
-                String::from("--"),
-                String::from("prog")
+                OsString::from(RUN0_CMD),
+                OsString::from("--background=42"),
+                OsString::from("--"),
+                OsString::from("prog")
             ])
         );
     }

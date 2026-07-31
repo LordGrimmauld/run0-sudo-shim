@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
-use std::{fmt::Display, process::exit};
+use std::{ffi::OsString, fmt::Display, process::exit};
 
 pub static POLKIT_STDIN_AGENT: &str = match option_env!("POLKIT_STDIN_AGENT") {
     Some(x) => x,
@@ -48,7 +48,7 @@ impl std::error::Error for Error {}
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct ShimResult {
-    pub cli: Vec<String>,
+    pub cli: Vec<OsString>,
     stderr: String,
     stdout: String,
 }
@@ -63,7 +63,7 @@ impl ShimResult {
     }
 
     #[cfg(test)]
-    pub fn ok_from(cli: Vec<String>) -> Result<Self, Error> {
+    pub fn ok_from(cli: Vec<OsString>) -> Result<Self, Error> {
         Ok(Self {
             cli,
             stderr: String::new(),
@@ -101,7 +101,7 @@ impl Run0Cli {
     }
 
     // CAN EXIT(1)
-    pub fn finalize(mut self) -> Vec<String> {
+    pub fn finalize(mut self) -> Vec<OsString> {
         let res = match self.res {
             Ok(res) => res,
             Err(e) => match e {

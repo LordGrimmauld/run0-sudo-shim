@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
+use std::ffi::OsString;
+
 use clap::{ArgAction, Args, ValueHint};
 
 #[derive(Debug, Args)]
@@ -104,7 +106,7 @@ pub struct SudoCli {
 
     /// an extra argument to pass to run0 (can be specified multiple times)
     #[clap(long = "run0-extra-arg", allow_hyphen_values = true)]
-    pub run0_extra_args: Vec<String>,
+    pub run0_extra_args: Vec<OsString>,
 
     /// command to be executed
     #[arg(allow_hyphen_values = true, value_hint = ValueHint::CommandWithArguments, trailing_var_arg(true), num_args=1..)]
