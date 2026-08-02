@@ -4,10 +4,13 @@ use crate::args::Cli;
 use clap::Parser;
 
 use nix::{
+    fcntl::{AT_FDCWD, OFlag, OpenHow, ResolveFlag, openat2},
     libc::{self},
     poll::{PollFd, PollFlags, PollTimeout, poll},
+    sys::stat::Mode,
 };
 use std::{
+    ffi::{OsStr, OsString},
     fs::{self, File, OpenOptions},
     io::{self},
     os::{
@@ -16,6 +19,25 @@ use std::{
     },
     path::Path,
 };
+
+fn open_dir(path: &Path) -> io::Result<OwnedFd> {
+    let dir_str: &OsStr = if nix::NixPath::is_empty(path) {
+        // FIXME: unstable feature to be replaced by std
+        eprintln!("received empty path");
+        &OsString::from(".")
+    } else {
+        path.as_os_str()
+    };
+    let fd = openat2(
+        AT_FDCWD,
+        dir_str,
+        OpenHow::new()
+            .flags(OFlag::O_PATH | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC)
+            .mode(Mode::empty())
+            .resolve(ResolveFlag::RESOLVE_NO_SYMLINKS),
+    )?;
+    Ok(fd)
+}
 
 fn uid_from_pid(pid: i32) -> Option<u32> {
     let metadata = fs::metadata(format!("/proc/{pid}")).ok()?;
@@ -32,31 +54,56 @@ fn pidfd_open(pid: libc::pid_t) -> nix::Result<OwnedFd> {
     Ok(unsafe { OwnedFd::from_raw_fd(fd as i32) })
 }
 
-fn copy_into_new_file(src: &Path, dst: &Path, owner_uid: Option<u32>) -> io::Result<()> {
-    let mut output = OpenOptions::new()
-        .write(true) // O_WRONLY because no read(true)
-        .create_new(true)
-        .mode(0o600)
-        .custom_flags(libc::O_NOFOLLOW)
-        .open(dst)?;
+fn copy_into_new_file(
+    src_dir: &OwnedFd,
+    src_filename: &OsStr,
+    dst_dir: &OwnedFd,
+    dst_filename: &OsStr,
+    owner_uid: Option<u32>,
+) -> io::Result<()> {
+    let dst_fd = openat2(
+        dst_dir,
+        dst_filename,
+        OpenHow::new()
+            .flags(
+                OFlag::O_WRONLY
+                    | OFlag::O_CREAT
+                    | OFlag::O_NOFOLLOW
+                    | OFlag::O_EXCL
+                    | OFlag::O_CLOEXEC,
+            )
+            .mode(Mode::S_IRUSR | Mode::S_IWUSR)
+            .resolve(ResolveFlag::RESOLVE_NO_SYMLINKS | ResolveFlag::RESOLVE_BENEATH),
+    )?;
 
-    match File::open(src) {
-        Ok(mut input) => {
-            io::copy(&mut input, &mut output)?;
+    let mut dst_file = File::from(dst_fd);
+
+    let src_fd = openat2(
+        src_dir,
+        src_filename,
+        OpenHow::new()
+            .flags(OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC)
+            .resolve(ResolveFlag::RESOLVE_NO_SYMLINKS | ResolveFlag::RESOLVE_BENEATH),
+    );
+
+    match src_fd {
+        Ok(src_fd) => {
+            let mut src_file = File::from(src_fd);
+            io::copy(&mut src_file, &mut dst_file)?;
         }
-        Err(e) => match e.kind() {
-            io::ErrorKind::NotFound => {
+        Err(errno) => match errno {
+            nix::errno::Errno::ENOENT => {
                 // no original file existing is fine
             }
             _ => {
-                return Err(e);
+                return Err(errno.into());
             }
         },
     }
 
-    output.sync_all()?;
+    dst_file.sync_all()?;
 
-    fchown(output, owner_uid, None).map_err(io::Error::other)?;
+    fchown(dst_file, owner_uid, None)?;
 
     Ok(())
 }
@@ -100,8 +147,20 @@ fn copy_into_privileged(dst: &Path, src: &Path, editor_pid: i32) -> io::Result<(
 fn main() -> io::Result<()> {
     let cli = Cli::parse();
 
+    let privileged_dir = open_dir(cli.file.parent().expect("file has parent"))?;
+    let privileged_filename = cli.file.file_name().expect("file has name");
+    let temp_dir = open_dir(cli.tmp_path.parent().expect("file has parent"))?;
+    let temp_filename = cli.tmp_path.file_name().expect("file has name");
+
     let pidfd = pidfd_open(cli.editor_pid)?; // fail early if editor stopped existing
-    copy_into_new_file(&cli.file, &cli.tmp_path, uid_from_pid(cli.editor_pid))?;
+
+    copy_into_new_file(
+        &privileged_dir,
+        privileged_filename,
+        &temp_dir,
+        temp_filename,
+        uid_from_pid(cli.editor_pid),
+    )?;
 
     let mut fds = [PollFd::new(pidfd.as_fd(), PollFlags::POLLIN)];
     poll(&mut fds, PollTimeout::NONE)?;
