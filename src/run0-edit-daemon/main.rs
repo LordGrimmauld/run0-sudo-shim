@@ -4,18 +4,19 @@ use crate::args::Cli;
 use clap::Parser;
 
 use nix::{
-    fcntl::{AT_FDCWD, OFlag, OpenHow, ResolveFlag, openat2},
-    libc::{self},
+    fcntl::{AT_FDCWD, AtFlags, OFlag, OpenHow, ResolveFlag, openat2, renameat},
+    libc,
     poll::{PollFd, PollFlags, PollTimeout, poll},
-    sys::stat::Mode,
+    sys::stat::{Mode, fchmod, fstatat},
+    unistd::{fsync, linkat, unlinkat},
 };
 use std::{
     ffi::{OsStr, OsString},
-    fs::{self, File, OpenOptions},
-    io::{self},
+    fs::{self, File},
+    io,
     os::{
         fd::{AsFd, FromRawFd, OwnedFd},
-        unix::fs::{MetadataExt, OpenOptionsExt, fchown},
+        unix::fs::{MetadataExt, fchown},
     },
     path::Path,
 };
@@ -23,7 +24,6 @@ use std::{
 fn open_dir(path: &Path) -> io::Result<OwnedFd> {
     let dir_str: &OsStr = if nix::NixPath::is_empty(path) {
         // FIXME: unstable feature to be replaced by std
-        eprintln!("received empty path");
         &OsString::from(".")
     } else {
         path.as_os_str()
@@ -32,7 +32,7 @@ fn open_dir(path: &Path) -> io::Result<OwnedFd> {
         AT_FDCWD,
         dir_str,
         OpenHow::new()
-            .flags(OFlag::O_PATH | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC)
+            .flags(OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC) // later unlinkat imposes O_RDONLY instead of O_PATH
             .mode(Mode::empty())
             .resolve(ResolveFlag::RESOLVE_NO_SYMLINKS),
     )?;
@@ -76,6 +76,8 @@ fn copy_into_new_file(
             .resolve(ResolveFlag::RESOLVE_NO_SYMLINKS | ResolveFlag::RESOLVE_BENEATH),
     )?;
 
+    // TODO: fstat dst_fd and save ino/dev
+
     let mut dst_file = File::from(dst_fd);
 
     let src_fd = openat2(
@@ -88,17 +90,16 @@ fn copy_into_new_file(
 
     match src_fd {
         Ok(src_fd) => {
+            // TODO: fstat src_fd and save ino/dev
             let mut src_file = File::from(src_fd);
             io::copy(&mut src_file, &mut dst_file)?;
         }
-        Err(errno) => match errno {
-            nix::errno::Errno::ENOENT => {
-                // no original file existing is fine
-            }
-            _ => {
-                return Err(errno.into());
-            }
-        },
+        Err(nix::errno::Errno::ENOENT) => {
+            // no original file existing is fine
+        }
+        Err(errno) => {
+            return Err(errno.into());
+        }
     }
 
     dst_file.sync_all()?;
@@ -108,39 +109,72 @@ fn copy_into_new_file(
     Ok(())
 }
 
-fn copy_into_privileged(dst: &Path, src: &Path, editor_pid: i32) -> io::Result<()> {
-    let tmp = dst
-        .with_added_extension("tmp")
-        .with_added_extension(editor_pid.to_string());
-    let mut input = File::open(src)?;
-
-    // TODO: xattrs
-    let (uid, gid, mode) = match fs::symlink_metadata(dst) {
-        Ok(meta) => (meta.uid(), meta.gid(), meta.mode()),
-        Err(e) => match e.kind() {
-            io::ErrorKind::NotFound => (0, 0, 0o644),
-            _ => {
-                return Err(e);
-            }
-        },
+fn copy_into_privileged(
+    dst_dir: &OwnedFd,
+    dst_filename: &OsStr,
+    src_dir: &OwnedFd,
+    src_filename: &OsStr,
+    editor_pid: i32,
+) -> io::Result<()> {
+    let (uid, gid, mode) = match fstatat(dst_dir, dst_filename, AtFlags::AT_SYMLINK_NOFOLLOW) {
+        Ok(stat) => (stat.st_uid, stat.st_gid, stat.st_mode),
+        Err(nix::errno::Errno::ENOENT) => (0, 0, 0o644),
+        Err(errno) => {
+            return Err(io::Error::from(errno));
+        }
     };
 
-    let mut output_tmp = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(mode)
-        .custom_flags(libc::O_NOFOLLOW)
-        .open(&tmp)?;
+    // TODO: xattrs
+    // TODO: compare saved ino/dev of src/dst
 
-    io::copy(&mut input, &mut output_tmp)?;
+    let tmp_fd = openat2(
+        dst_dir,
+        ".",
+        OpenHow::new()
+            .flags(OFlag::O_WRONLY | OFlag::O_CLOEXEC | OFlag::O_TMPFILE)
+            .mode(Mode::empty())
+            .resolve(ResolveFlag::RESOLVE_NO_SYMLINKS | ResolveFlag::RESOLVE_BENEATH),
+    )?;
 
-    fchown(output_tmp.as_fd(), Some(uid), Some(gid))?;
+    let src_fd = openat2(
+        src_dir,
+        src_filename,
+        OpenHow::new()
+            .flags(OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC)
+            .resolve(ResolveFlag::RESOLVE_NO_SYMLINKS | ResolveFlag::RESOLVE_BENEATH),
+    )?;
 
-    output_tmp.sync_all()?;
-    drop(output_tmp);
+    let mut tmp_file = File::from(tmp_fd);
+    let mut src_file = File::from(src_fd);
+    io::copy(&mut src_file, &mut tmp_file)?;
+    fchown(tmp_file.as_fd(), Some(uid), Some(gid))?;
+    fchmod(tmp_file.as_fd(), Mode::from_bits_truncate(mode))?;
+    tmp_file.sync_all()?;
 
-    fs::rename(&tmp, dst)?;
-    fs::remove_file(src)?;
+    let mut tmp_name_linked: OsString = dst_filename.to_owned();
+    tmp_name_linked.push(".tmp.");
+    tmp_name_linked.push(editor_pid.to_string());
+
+    linkat(
+        tmp_file.as_fd(),
+        "",
+        dst_dir,
+        tmp_name_linked.as_os_str(),
+        AtFlags::AT_EMPTY_PATH,
+    )?;
+
+    drop(tmp_file);
+    drop(src_file);
+
+    renameat(dst_dir, tmp_name_linked.as_os_str(), dst_dir, dst_filename)?;
+    fsync(dst_dir)?;
+
+    unlinkat(
+        src_dir,
+        src_filename,
+        nix::unistd::UnlinkatFlags::NoRemoveDir,
+    )?;
+
     Ok(())
 }
 
@@ -167,7 +201,13 @@ fn main() -> io::Result<()> {
 
     println!("editor terminated");
 
-    copy_into_privileged(&cli.file, &cli.tmp_path, cli.editor_pid)?;
+    copy_into_privileged(
+        &privileged_dir,
+        privileged_filename,
+        &temp_dir,
+        temp_filename,
+        cli.editor_pid,
+    )?;
 
     Ok(())
 }
