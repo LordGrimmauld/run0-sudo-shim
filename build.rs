@@ -10,6 +10,10 @@ mod args;
 #[path = "src/run0-sudo-shim/sudo/args.rs"]
 mod sudo;
 
+#[cfg(feature = "sudoedit")]
+#[path = "src/run0-sudo-shim/sudoedit/args.rs"]
+mod sudoedit;
+
 #[cfg(feature = "run0-edit-daemon")]
 #[path = "src/run0-edit-daemon/args.rs"]
 mod run0_edit_daemon;

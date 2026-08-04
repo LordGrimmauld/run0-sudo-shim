@@ -11,6 +11,9 @@ mod external_programs;
 
 mod sudo;
 
+#[cfg(feature = "sudoedit")]
+mod sudoedit;
+
 use crate::args::*;
 use crate::common::*;
 
@@ -20,12 +23,17 @@ impl Cli {
         cwd: Option<String>,
         current_uid: users::uid_t,
         current_env: Vec<String>,
-        #[allow(unused)] current_pid: u32,
+        current_pid: u32,
     ) -> Run0Cli {
         match self.command {
             crate::Commands::Sudo(args) => Run0Cli::new(
                 sudo::parse_to_run0_cli(args, cwd, current_uid, current_env),
                 clap::Command::new("sudo"),
+            ),
+            #[cfg(feature = "sudoedit")]
+            crate::Commands::Sudoedit(args) => Run0Cli::new(
+                sudoedit::parse_to_run0_cli(args, cwd, current_pid, current_uid),
+                clap::Command::new("sudoedit"),
             ),
         }
     }

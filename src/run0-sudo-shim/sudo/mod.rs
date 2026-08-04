@@ -275,7 +275,6 @@ mod tests {
     fn test_bare() {
         let cli = Cli::parse_from(["sudo"]);
         assert!(matches!(cli.command, crate::Commands::Sudo(_)));
-        #[allow(irrefutable_let_patterns)]
         let crate::Commands::Sudo(sudo_cli) = &cli.command else {
             unreachable!()
         };
@@ -654,6 +653,7 @@ mod unsupported {
         );
     }
 
+    #[cfg(not(feature = "sudoedit"))]
     #[test]
     fn test_edit_unsupported() {
         let cli = Cli::parse_from(["sudo", "-e"]);

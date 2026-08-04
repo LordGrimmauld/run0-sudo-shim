@@ -74,6 +74,7 @@
 
           postInstall = ''
             ln -s $out/bin/${name} $out/bin/sudo
+            ln -s $out/bin/${name} $out/bin/sudoedit
             installManPage target/tmp/run0-sudo-shim/manpage/*
             installShellCompletion \
               target/tmp/run0-sudo-shim/completion/*.{bash,fish} \
