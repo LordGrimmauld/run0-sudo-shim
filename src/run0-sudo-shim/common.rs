@@ -2,21 +2,6 @@
 
 use std::{ffi::OsString, fmt::Display, process::exit};
 
-pub static POLKIT_STDIN_AGENT: &str = match option_env!("POLKIT_STDIN_AGENT") {
-    Some(x) => x,
-    None => "polkit-stdin-agent",
-};
-
-pub static RUN0_CMD: &str = match option_env!("RUN0") {
-    Some(x) => x,
-    None => "run0",
-};
-
-pub static TRUE_CMD: &str = match option_env!("TRUE") {
-    Some(x) => x,
-    None => "true",
-};
-
 pub fn die(msg: &str) -> ! {
     eprintln!("run0-sudo-shim: {msg}");
     exit(1)

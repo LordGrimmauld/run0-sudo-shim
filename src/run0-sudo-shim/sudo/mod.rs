@@ -5,6 +5,7 @@ use std::ffi::OsString;
 use users::uid_t;
 
 use crate::common::*;
+use crate::external_programs::{POLKIT_STDIN_AGENT, RUN0_CMD, TRUE_CMD};
 
 mod args;
 pub use args::SudoCli;
