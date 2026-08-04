@@ -69,6 +69,7 @@
             RUN0 = lib.getExe' systemd "run0";
             SYSTEMD_RUN = lib.getExe' systemd "systemd-run";
             TRUE = lib.getExe' coreutils "true";
+            RUN0_EDIT_DAEMON = "${placeholder "out"}/bin/run0-edit-daemon";
           };
 
           postInstall = ''

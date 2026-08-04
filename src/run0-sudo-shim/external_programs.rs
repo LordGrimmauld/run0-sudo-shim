@@ -19,6 +19,12 @@ pub static TRUE_CMD: &str = match option_env!("TRUE") {
 };
 
 #[allow(unused)]
+pub static RUN0_EDIT_DAEMON: &str = match option_env!("RUN0_EDIT_DAEMON") {
+    Some(x) => x,
+    None => "run0-edit-daemon",
+};
+
+#[allow(unused)]
 pub static SYSTEMD_RUN_CMD: &str = match option_env!("SYSTEMD_RUN") {
     Some(x) => x,
     None => "systemd-run",

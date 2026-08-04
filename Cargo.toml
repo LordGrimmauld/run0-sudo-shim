@@ -2,6 +2,11 @@
 name = "run0-sudo-shim"
 path = "src/run0-sudo-shim/main.rs"
 
+[[bin]]
+name = "run0-edit-daemon"
+path = "src/run0-edit-daemon/main.rs"
+required-features = ["run0-edit-daemon"]
+
 [build-dependencies]
 clap_mangen = "0.3.0"
 clap_complete = "4.6.5"
@@ -9,7 +14,12 @@ clap = {version = "4.5.4", features = ["derive"]}
 
 [dependencies]
 clap = {version = "4.5.4", features = ["derive"]}
+nix = {version = "0.31.3", default-features = false, optional = true}
 users = {version = "0.11.0", default-features = false}
+
+[features]
+default = ["run0-edit-daemon"]
+run0-edit-daemon = ["dep:nix", "nix/poll", "nix/fs"]
 
 [package]
 name = "run0-sudo-shim"

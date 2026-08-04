@@ -10,6 +10,10 @@ mod args;
 #[path = "src/run0-sudo-shim/sudo/args.rs"]
 mod sudo;
 
+#[cfg(feature = "run0-edit-daemon")]
+#[path = "src/run0-edit-daemon/args.rs"]
+mod run0_edit_daemon;
+
 use clap::{Command, CommandFactory};
 
 use clap_complete::{generate_to, shells::Shell};
@@ -51,6 +55,12 @@ fn main() -> io::Result<()> {
 
     for sub in Cli::command().get_subcommands() {
         gen_for_command(sub.clone(), &manpage_out_dir, &completion_out_dir)?;
+    }
+
+    #[cfg(feature = "run0-edit-daemon")]
+    {
+        let cmd = crate::run0_edit_daemon::Cli::command();
+        gen_for_command(cmd, &manpage_out_dir, &completion_out_dir)?;
     }
 
     Ok(())
