@@ -5,9 +5,9 @@ use clap::Parser;
 
 use nix::{
     fcntl::{AT_FDCWD, AtFlags, OFlag, OpenHow, ResolveFlag, openat2, renameat},
-    libc,
+    libc::{self, dev_t, ino_t},
     poll::{PollFd, PollFlags, PollTimeout, poll},
-    sys::stat::{Mode, fchmod, fstatat},
+    sys::stat::{Mode, fchmod, fstat, fstatat},
     unistd::{fsync, linkat, unlinkat},
 };
 use std::{
@@ -54,13 +54,15 @@ fn pidfd_open(pid: libc::pid_t) -> nix::Result<OwnedFd> {
     Ok(unsafe { OwnedFd::from_raw_fd(fd as i32) })
 }
 
+type FileDiskInfo = (ino_t, dev_t);
+
 fn copy_into_new_file(
     src_dir: &OwnedFd,
     src_filename: &OsStr,
     dst_dir: &OwnedFd,
     dst_filename: &OsStr,
     owner_uid: Option<u32>,
-) -> io::Result<()> {
+) -> io::Result<(Option<FileDiskInfo>, FileDiskInfo)> {
     let dst_fd = openat2(
         dst_dir,
         dst_filename,
@@ -76,7 +78,8 @@ fn copy_into_new_file(
             .resolve(ResolveFlag::RESOLVE_NO_SYMLINKS | ResolveFlag::RESOLVE_BENEATH),
     )?;
 
-    // TODO: fstat dst_fd and save ino/dev
+    let dst_stat = fstat(&dst_fd)?;
+    let dst_info: FileDiskInfo = (dst_stat.st_ino, dst_stat.st_dev);
 
     let mut dst_file = File::from(dst_fd);
 
@@ -88,32 +91,37 @@ fn copy_into_new_file(
             .resolve(ResolveFlag::RESOLVE_NO_SYMLINKS | ResolveFlag::RESOLVE_BENEATH),
     );
 
-    match src_fd {
+    let src_info = match src_fd {
         Ok(src_fd) => {
-            // TODO: fstat src_fd and save ino/dev
+            let src_stat = fstat(&src_fd)?;
+            let src_info: FileDiskInfo = (src_stat.st_ino, src_stat.st_dev);
             let mut src_file = File::from(src_fd);
             io::copy(&mut src_file, &mut dst_file)?;
+            Some(src_info)
         }
         Err(nix::errno::Errno::ENOENT) => {
             // no original file existing is fine
+            None
         }
         Err(errno) => {
             return Err(errno.into());
         }
-    }
+    };
 
     dst_file.sync_all()?;
 
     fchown(dst_file, owner_uid, None)?;
 
-    Ok(())
+    Ok((src_info, dst_info))
 }
 
 fn copy_into_privileged(
     dst_dir: &OwnedFd,
     dst_filename: &OsStr,
+    dst_info: Option<FileDiskInfo>,
     src_dir: &OwnedFd,
     src_filename: &OsStr,
+    src_info: FileDiskInfo,
     editor_pid: i32,
 ) -> io::Result<()> {
     let (uid, gid, mode) = match fstatat(dst_dir, dst_filename, AtFlags::AT_SYMLINK_NOFOLLOW) {
@@ -144,6 +152,9 @@ fn copy_into_privileged(
             .resolve(ResolveFlag::RESOLVE_NO_SYMLINKS | ResolveFlag::RESOLVE_BENEATH),
     )?;
 
+    let src_stat = fstat(&src_fd)?;
+    assert_eq!(src_stat.st_dev, src_info.1); // can't compare ino, because editor may attempt an atomic replace on this file
+
     let mut tmp_file = File::from(tmp_fd);
     let mut src_file = File::from(src_fd);
     io::copy(&mut src_file, &mut tmp_file)?;
@@ -165,6 +176,19 @@ fn copy_into_privileged(
 
     drop(tmp_file);
     drop(src_file);
+
+    match fstatat(dst_dir, dst_filename, AtFlags::AT_SYMLINK_NOFOLLOW) {
+        Ok(dst_stat) => {
+            assert!(dst_info.is_some());
+            assert_eq!((dst_stat.st_ino, dst_stat.st_dev), dst_info.unwrap());
+        }
+        Err(nix::errno::Errno::ENOENT) => {
+            assert!(dst_info.is_none());
+        }
+        Err(errno) => {
+            return Err(io::Error::from(errno));
+        }
+    }
 
     renameat(dst_dir, tmp_name_linked.as_os_str(), dst_dir, dst_filename)?;
     fsync(dst_dir)?;
@@ -188,7 +212,7 @@ fn main() -> io::Result<()> {
 
     let pidfd = pidfd_open(cli.editor_pid)?; // fail early if editor stopped existing
 
-    copy_into_new_file(
+    let (privileged_info, temp_info) = copy_into_new_file(
         &privileged_dir,
         privileged_filename,
         &temp_dir,
@@ -204,8 +228,10 @@ fn main() -> io::Result<()> {
     copy_into_privileged(
         &privileged_dir,
         privileged_filename,
+        privileged_info,
         &temp_dir,
         temp_filename,
+        temp_info,
         cli.editor_pid,
     )?;
 
