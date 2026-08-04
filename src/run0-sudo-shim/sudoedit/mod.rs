@@ -12,7 +12,7 @@ use std::{
 use users::uid_t;
 
 use crate::common::*;
-use crate::external_programs::{POLKIT_STDIN_AGENT, RUN0_EDIT_DAEMON, SYSTEMD_RUN_CMD};
+use common::{POLKIT_STDIN_AGENT, RUN0_EDIT_DAEMON, SYSTEMD_RUN_CMD};
 
 mod args;
 pub use args::SudoeditCli;

@@ -7,7 +7,6 @@ use users::get_current_uid;
 
 mod args;
 mod common;
-mod external_programs;
 
 mod sudo;
 

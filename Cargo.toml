@@ -7,6 +7,11 @@ name = "run0-edit-daemon"
 path = "src/run0-edit-daemon/main.rs"
 required-features = ["run0-edit-daemon"]
 
+
+[lib]
+name = "common"
+path = "src/lib/mod.rs"
+
 [build-dependencies]
 clap_mangen = "0.3.0"
 clap_complete = "4.6.5"

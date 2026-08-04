@@ -29,3 +29,9 @@ pub static SYSTEMD_RUN_CMD: &str = match option_env!("SYSTEMD_RUN") {
     Some(x) => x,
     None => "systemd-run",
 };
+
+#[allow(unused)]
+pub static AUDITCTL_CMD: &str = match option_env!("AUDITCTL") {
+    Some(x) => x,
+    None => "auditctl",
+};
