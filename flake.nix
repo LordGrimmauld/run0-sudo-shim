@@ -67,6 +67,7 @@
           env = {
             POLKIT_STDIN_AGENT = lib.getExe polkit-stdin-agent;
             RUN0 = lib.getExe' systemd "run0";
+            SYSTEMD_RUN = lib.getExe' systemd "systemd-run";
             TRUE = lib.getExe' coreutils "true";
           };
 
