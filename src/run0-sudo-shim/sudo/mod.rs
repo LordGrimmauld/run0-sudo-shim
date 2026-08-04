@@ -98,14 +98,11 @@ fn env_var_allowed(env_var: &str) -> bool {
 pub fn parse_to_run0_cli(
     cli: SudoCli,
     cwd: Option<String>,
+    #[allow(unused)] current_pid: u32,
     current_uid: uid_t,
     current_env: Vec<String>,
 ) -> Result<ShimResult, Error> {
     // Maybe migrate to `systemd-run --wait -P -q -G` ?
-    if cli.edit {
-        return Err(Error::Unsupported(String::from("--edit")));
-    }
-
     if cli.list > 0 || cli.other_user.is_some() {
         return Err(Error::Unsupported(String::from("list mode")));
     }
@@ -143,6 +140,18 @@ pub fn parse_to_run0_cli(
 
     if cli.prompt.is_some() {
         buf.push_stderr("run0-sudo-shim: --prompt is currently ignored");
+    }
+
+    if cli.edit {
+        #[cfg(not(feature = "sudoedit"))]
+        {
+            return Err(Error::Unsupported(String::from("--edit")));
+        }
+        #[cfg(feature = "sudoedit")]
+        {
+            let sudoedit_cli = crate::sudoedit::SudoeditCli::from(cli)?;
+            return crate::sudoedit::parse_to_run0_cli(sudoedit_cli, cwd, current_pid, current_uid);
+        }
     }
 
     if cli.bell && !cli.non_interactive {

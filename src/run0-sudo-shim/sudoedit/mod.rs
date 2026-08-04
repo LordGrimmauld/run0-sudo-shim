@@ -59,6 +59,69 @@ fn generate_file_path() -> PathBuf {
     PathBuf::from(runtime_dir).join(name)
 }
 
+impl SudoeditCli {
+    pub fn from(cli: crate::sudo::SudoCli) -> Result<Self, Error> {
+        if cli.background {
+            return Err(Error::Unsupported(String::from("-e with --background")));
+        }
+        if cli.set_home {
+            return Err(Error::Unsupported(String::from("-e with --set-home")));
+        }
+        if cli.login {
+            return Err(Error::Unsupported(String::from("-e with --login")));
+        }
+        if cli.shell {
+            return Err(Error::Unsupported(String::from("-e with --shell")));
+        }
+        if cli.validate {
+            return Err(Error::Unsupported(String::from("-e with --validate")));
+        }
+        if cli.remove_timestamp {
+            return Err(Error::Unsupported(String::from(
+                "-e with --remove-timestamp",
+            )));
+        }
+        if cli.reset_timestamp {
+            return Err(Error::Unsupported(String::from(
+                "-e with --reset-timestamp",
+            )));
+        }
+        if cli.list > 0 {
+            return Err(Error::Unsupported(String::from("-e with --list")));
+        }
+        if cli.preserve_groups {
+            return Err(Error::Unsupported(String::from(
+                "-e with --preserve-groups",
+            )));
+        }
+        if cli.preserve_env.is_some() {
+            return Err(Error::Unsupported(String::from("-e with --preserve_env")));
+        }
+
+        Ok(crate::sudoedit::SudoeditCli {
+            bell: cli.bell,
+            askpass: cli.askpass,
+            file_descriptor_limit: cli.file_descriptor_limit,
+            working_directory: cli.working_directory,
+            host: cli.host,
+            group: cli.group,
+            non_interactive: cli.non_interactive,
+            prompt: cli.prompt,
+            chroot: cli.chroot,
+            stdin: cli.stdin,
+            command_timeout: cli.command_timeout,
+            user: cli.user,
+            run0_extra_args: cli.run0_extra_args,
+            file: cli
+                .command
+                .into_iter()
+                .flatten()
+                .map(PathBuf::from)
+                .collect(),
+        })
+    }
+}
+
 #[cfg(test)]
 fn generate_file_path() -> PathBuf {
     let runtime_dir = "/run/user/1000";

@@ -27,7 +27,7 @@ impl Cli {
     ) -> Run0Cli {
         match self.command {
             crate::Commands::Sudo(args) => Run0Cli::new(
-                sudo::parse_to_run0_cli(args, cwd, current_uid, current_env),
+                sudo::parse_to_run0_cli(args, cwd, current_pid, current_uid, current_env),
                 clap::Command::new("sudo"),
             ),
             #[cfg(feature = "sudoedit")]
