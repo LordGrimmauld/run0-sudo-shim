@@ -20,6 +20,7 @@ impl Cli {
         cwd: Option<String>,
         current_uid: users::uid_t,
         current_env: Vec<String>,
+        #[allow(unused)] current_pid: u32,
     ) -> Run0Cli {
         match self.command {
             crate::Commands::Sudo(args) => Run0Cli::new(
@@ -39,7 +40,7 @@ fn main() {
 
     let env = env::vars().map(|(key, _)| key).collect();
 
-    let parsed = cli.parse_to_run0_cli(cwd, get_current_uid(), env);
+    let parsed = cli.parse_to_run0_cli(cwd, get_current_uid(), env, std::process::id());
     let (cli, post_run0_hook) = parsed.finalize();
 
     let program = cli
