@@ -31,11 +31,28 @@ impl Display for Error {
 
 impl std::error::Error for Error {}
 
-#[derive(Debug, Eq, PartialEq)]
 pub struct ShimResult {
     pub cli: Vec<OsString>,
+    pub post_run0_hook: Option<PostRunClosure>,
     stderr: String,
     stdout: String,
+}
+
+impl std::fmt::Debug for ShimResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ShimResult")
+            .field("cli", &self.cli)
+            .field("post_run0_hook", &self.post_run0_hook.is_some())
+            .field("stderr", &self.stderr)
+            .field("stdout", &self.stdout)
+            .finish()
+    }
+}
+
+impl PartialEq for ShimResult {
+    fn eq(&self, other: &Self) -> bool {
+        self.cli == other.cli && self.stderr == other.stderr && self.stdout == other.stdout
+    }
 }
 
 impl ShimResult {
@@ -44,6 +61,7 @@ impl ShimResult {
             cli: Vec::new(),
             stderr: String::new(),
             stdout: String::new(),
+            post_run0_hook: None,
         }
     }
 
@@ -53,6 +71,7 @@ impl ShimResult {
             cli,
             stderr: String::new(),
             stdout: String::new(),
+            post_run0_hook: None,
         })
     }
     #[cfg(test)]
@@ -80,13 +99,15 @@ pub struct Run0Cli {
     cmd: clap::Command,
 }
 
+type PostRunClosure = Box<dyn FnOnce()>;
+
 impl Run0Cli {
     pub fn new(res: Result<ShimResult, Error>, cmd: clap::Command) -> Self {
         Self { res, cmd }
     }
 
     // CAN EXIT(1)
-    pub fn finalize(mut self) -> Vec<OsString> {
+    pub fn finalize(mut self) -> (Vec<OsString>, Option<PostRunClosure>) {
         let res = match self.res {
             Ok(res) => res,
             Err(e) => match e {
@@ -103,6 +124,6 @@ impl Run0Cli {
         if !res.stdout.is_empty() {
             println!("{}", res.stdout);
         }
-        res.cli
+        (res.cli, res.post_run0_hook)
     }
 }
