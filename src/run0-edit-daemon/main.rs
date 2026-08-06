@@ -3,6 +3,8 @@ mod args;
 use crate::args::Cli;
 use clap::Parser;
 
+#[cfg(feature = "audit")]
+use linux_audit_parser::MessageType;
 use nix::{
     fcntl::{AT_FDCWD, AtFlags, OFlag, OpenHow, ResolveFlag, openat2, renameat},
     libc::{self, dev_t, ino_t},
@@ -19,6 +21,12 @@ use std::{
         unix::fs::{MetadataExt, fchown},
     },
     path::Path,
+};
+#[cfg(feature = "audit")]
+use std::{
+    io::{BufRead, BufReader},
+    os::unix::net::UnixStream,
+    thread,
 };
 
 fn open_dir(path: &Path) -> io::Result<OwnedFd> {
@@ -202,6 +210,120 @@ fn copy_into_privileged(
     Ok(())
 }
 
+#[cfg(feature = "audit")]
+fn setup_audit_rule(editor_pid: i32, temp_path: &Path) -> io::Result<()> {
+    use common::external_programs::AUDITCTL_CMD;
+    use std::process::Command;
+    let res = Command::new(AUDITCTL_CMD)
+        .arg("-w")
+        .arg(temp_path.as_os_str())
+        .args(["-p", "wa"])
+        .args(["-k", &format!("run0-edit-{editor_pid}")])
+        .status();
+    match res {
+        Ok(status) => {
+            if !status.success() {
+                eprintln!(
+                    "Error while cleaning up audit logging: `auditctl` failed with status: {}",
+                    status
+                );
+                Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    status.to_string(),
+                ))
+            } else {
+                Ok(())
+            }
+        }
+        Err(err) => {
+            eprintln!("Error while setting up audit logging: {err}");
+            Err(err)
+        }
+    }
+}
+
+#[cfg(feature = "audit")]
+fn teardown_audit_rule(editor_pid: i32, temp_path: &Path) {
+    use common::external_programs::AUDITCTL_CMD;
+    use std::process::Command;
+    let res = Command::new(AUDITCTL_CMD)
+        .arg("-W")
+        .arg(temp_path.as_os_str())
+        .args(["-p", "wa"])
+        .args(["-k", &format!("run0-edit-{editor_pid}")])
+        .status();
+    match res {
+        Ok(status) => {
+            if !status.success() {
+                eprintln!(
+                    "Error while cleaning up audit logging: `auditctl` failed with status: {}",
+                    status
+                );
+            }
+        }
+        Err(err) => eprintln!("Error while cleaning up audit logging: {err}"),
+    };
+}
+
+#[cfg(feature = "audit")]
+pub fn start_audit_logger(editor_pid: i32) -> thread::JoinHandle<()> {
+    let wanted_key = format!("run0-edit-{editor_pid}");
+
+    thread::spawn(move || {
+        let stream = match UnixStream::connect(common::AUDISP_SOCKET) {
+            Ok(s) => s,
+            Err(err) => {
+                eprintln!("Failed to connect to {}: {err}", common::AUDISP_SOCKET);
+                return;
+            }
+        };
+
+        let mut reader = BufReader::new(stream);
+
+        let mut buf = Vec::new();
+        loop {
+            buf.clear();
+            // need to actually keep \n around for parser to be happy
+            if reader.read_until(b'\n', &mut buf).is_err() || buf.is_empty() {
+                break;
+            }
+
+            let parsed = linux_audit_parser::parse(&buf, true);
+            match parsed {
+                Ok(res) => {
+                    if let Some(linux_audit_parser::Value::Str(key, _)) = res.body.get("key")
+                        && key == &wanted_key.as_bytes()
+                        && res.ty == MessageType::SYSCALL
+                    {
+                        match res.body.get("pid") {
+                            Some(linux_audit_parser::Value::Number(
+                                linux_audit_parser::Number::Dec(pid),
+                            )) => {
+                                if pid == &(editor_pid as i64) {
+                                    println!("detected editor access from pid {pid}");
+                                } else if pid == &std::process::id().into() {
+                                    println!("detected daemon access from pid {pid}");
+                                } else {
+                                    eprintln!(
+                                        "detected anomalous access from pid {pid}: {:?}",
+                                        res
+                                    );
+                                    // TODO: actually *do something* about some other process messing with the temp file
+                                }
+                            }
+                            _ => eprintln!(
+                                "audit detected access, but unable to read pid: {:?}",
+                                res
+                            ),
+                        }
+                    }
+                }
+                Err(e) => eprintln!("audit parsing failed: {e}"),
+            }
+        }
+    })
+}
+
 fn main() -> io::Result<()> {
     let cli = Cli::parse();
 
@@ -211,6 +333,12 @@ fn main() -> io::Result<()> {
     let temp_filename = cli.tmp_path.file_name().expect("file has name");
 
     let pidfd = pidfd_open(cli.editor_pid)?; // fail early if editor stopped existing
+
+    #[cfg(feature = "audit")]
+    let audit_needs_teardown: bool = {
+        start_audit_logger(cli.editor_pid);
+        setup_audit_rule(cli.editor_pid, &cli.tmp_path).is_ok()
+    };
 
     let (privileged_info, temp_info) = copy_into_new_file(
         &privileged_dir,
@@ -235,5 +363,22 @@ fn main() -> io::Result<()> {
         cli.editor_pid,
     )?;
 
+    #[cfg(feature = "audit")]
+    if audit_needs_teardown {
+        teardown_audit_rule(cli.editor_pid, &cli.tmp_path);
+    }
+
     Ok(())
+}
+
+#[cfg(all(feature = "audit", test))]
+mod audit_parser_smoketest {
+    #[test]
+    fn test_audit_parser_can_parse() {
+        // just a simple smoke test of the kind of entries we get
+        let line = "type=SYSCALL msg=audit(1786032480.133:844): arch=c000003e syscall=437 success=yes exit=7 a0=4 a1=7ffe98d6e2b0 a2=7ffe98d6e820 a3=18 items=2 ppid=1 pid=9333 auid=4294967295 uid=0 gid=0 euid=0 suid=0 fsuid=0 egid=0 sgid=0 fsgid=0 tty=(none) ses=4294967295 comm=\"run0-edit-daemo\" exe=\"/nix/store/srj668z1f7hw43ffl0gpc5wfbcg0l7hs-run0-sudo-shim/bin/run0-edit-daemon\" subj=unconfined key=\"run0-edit-9304\"\x1dARCH=x86_64 SYSCALL=openat2 AUID=\"unset\" UID=\"root\" GID=\"root\" EUID=\"root\" SUID=\"root\" FSUID=\"root\" EGID=\"root\" SGID=\"root\" FSGID=\"root\"\x0a";
+        let parsed = linux_audit_parser::parse(line.as_bytes(), true);
+        println!("{:?}", parsed);
+        assert!(parsed.is_ok());
+    }
 }

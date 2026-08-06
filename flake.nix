@@ -44,6 +44,7 @@
 
       package =
         {
+          audit,
           coreutils,
           lib,
           rustPlatform,
@@ -70,6 +71,7 @@
             SYSTEMD_RUN = lib.getExe' systemd "systemd-run";
             TRUE = lib.getExe' coreutils "true";
             RUN0_EDIT_DAEMON = "${placeholder "out"}/bin/run0-edit-daemon";
+            AUDITCTL = lib.getExe' audit "auditctl";
           };
 
           postInstall = ''

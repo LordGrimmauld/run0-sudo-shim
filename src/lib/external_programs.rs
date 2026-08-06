@@ -35,3 +35,9 @@ pub static AUDITCTL_CMD: &str = match option_env!("AUDITCTL") {
     Some(x) => x,
     None => "auditctl",
 };
+
+#[allow(unused)]
+pub static AUDISP_SOCKET: &str = match option_env!("AUDISPD_SOCKET") {
+    Some(x) => x,
+    None => "/run/audit/audispd_events",
+};

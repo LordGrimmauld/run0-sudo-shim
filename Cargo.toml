@@ -7,11 +7,6 @@ name = "run0-edit-daemon"
 path = "src/run0-edit-daemon/main.rs"
 required-features = ["run0-edit-daemon"]
 
-
-[lib]
-name = "common"
-path = "src/lib/mod.rs"
-
 [build-dependencies]
 clap_mangen = "0.3.0"
 clap_complete = "4.6.5"
@@ -19,14 +14,20 @@ clap = {version = "4.5.4", features = ["derive"]}
 
 [dependencies]
 clap = {version = "4.5.4", features = ["derive"]}
+linux-audit-parser = {version = "0.2.8", default-features = false, optional = true}
 nix = {version = "0.31.3", default-features = false, optional = true}
 rand = {version = "0.10.2", default-features = false, features = ["sys_rng"], optional = true}
 users = {version = "0.11.0", default-features = false}
 
 [features]
-default = ["sudoedit"]
+default = ["sudoedit", "audit"]
 sudoedit = ["dep:rand", "run0-edit-daemon"]
 run0-edit-daemon = ["dep:nix", "nix/poll", "nix/fs"]
+audit = ["dep:linux-audit-parser"]
+
+[lib]
+name = "common"
+path = "src/lib/mod.rs"
 
 [package]
 name = "run0-sudo-shim"
