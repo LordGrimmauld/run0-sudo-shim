@@ -13,4 +13,8 @@ pub struct Cli {
 pub(crate) enum Commands {
     #[command(alias = "run0-sudo-shim")]
     Sudo(crate::sudo::SudoCli),
+
+    #[cfg(feature = "sudoedit")]
+    #[command()]
+    Sudoedit(crate::sudoedit::SudoeditCli),
 }

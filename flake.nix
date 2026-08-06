@@ -44,6 +44,7 @@
 
       package =
         {
+          audit,
           coreutils,
           lib,
           rustPlatform,
@@ -67,15 +68,19 @@
           env = {
             POLKIT_STDIN_AGENT = lib.getExe polkit-stdin-agent;
             RUN0 = lib.getExe' systemd "run0";
+            SYSTEMD_RUN = lib.getExe' systemd "systemd-run";
             TRUE = lib.getExe' coreutils "true";
+            RUN0_EDIT_DAEMON = "${placeholder "out"}/bin/run0-edit-daemon";
+            AUDITCTL = lib.getExe' audit "auditctl";
           };
 
           postInstall = ''
             ln -s $out/bin/${name} $out/bin/sudo
+            ln -s $out/bin/${name} $out/bin/sudoedit
             installManPage target/tmp/run0-sudo-shim/manpage/*
             installShellCompletion \
-              target/tmp/run0-sudo-shim/completion/sudo.{bash,fish} \
-              --zsh target/tmp/run0-sudo-shim/completion/_sudo
+              target/tmp/run0-sudo-shim/completion/*.{bash,fish} \
+              --zsh target/tmp/run0-sudo-shim/completion/_*
           '';
 
           meta = {

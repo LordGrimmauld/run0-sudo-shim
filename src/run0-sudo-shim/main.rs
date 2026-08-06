@@ -7,7 +7,11 @@ use users::get_current_uid;
 
 mod args;
 mod common;
+
 mod sudo;
+
+#[cfg(feature = "sudoedit")]
+mod sudoedit;
 
 use crate::args::*;
 use crate::common::*;
@@ -18,11 +22,17 @@ impl Cli {
         cwd: Option<String>,
         current_uid: users::uid_t,
         current_env: Vec<String>,
+        current_pid: u32,
     ) -> Run0Cli {
         match self.command {
             crate::Commands::Sudo(args) => Run0Cli::new(
-                sudo::parse_to_run0_cli(args, cwd, current_uid, current_env),
+                sudo::parse_to_run0_cli(args, cwd, current_pid, current_uid, current_env),
                 clap::Command::new("sudo"),
+            ),
+            #[cfg(feature = "sudoedit")]
+            crate::Commands::Sudoedit(args) => Run0Cli::new(
+                sudoedit::parse_to_run0_cli(args, cwd, current_pid, current_uid),
+                clap::Command::new("sudoedit"),
             ),
         }
     }
@@ -37,14 +47,20 @@ fn main() {
 
     let env = env::vars().map(|(key, _)| key).collect();
 
-    let mut cli = cli
-        .parse_to_run0_cli(cwd, get_current_uid(), env)
-        .finalize()
-        .into_iter();
+    let parsed = cli.parse_to_run0_cli(cwd, get_current_uid(), env, std::process::id());
+    let (cli, post_run0_hook) = parsed.finalize();
 
-    let program = cli.next().unwrap_or_else(|| die("unable to construct cli"));
+    let program = cli
+        .first()
+        .unwrap_or_else(|| die("unable to construct cli"));
 
-    let error = Command::new(program).args(cli).exec();
-
-    die(&format!("failed to execute run0: {error}"));
+    if let Some(hook) = post_run0_hook {
+        if let Err(error) = Command::new(program).args(cli).spawn() {
+            die(&format!("failed to exec run0: {error}"));
+        }
+        hook();
+    } else {
+        let error = Command::new(program).args(cli).exec();
+        die(&format!("failed to exec run0: {error}"));
+    }
 }

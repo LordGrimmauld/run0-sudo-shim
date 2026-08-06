@@ -1,21 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
-use std::{fmt::Display, process::exit};
-
-pub static POLKIT_STDIN_AGENT: &str = match option_env!("POLKIT_STDIN_AGENT") {
-    Some(x) => x,
-    None => "polkit-stdin-agent",
-};
-
-pub static RUN0_CMD: &str = match option_env!("RUN0") {
-    Some(x) => x,
-    None => "run0",
-};
-
-pub static TRUE_CMD: &str = match option_env!("TRUE") {
-    Some(x) => x,
-    None => "true",
-};
+use std::{ffi::OsString, fmt::Display, process::exit};
 
 pub fn die(msg: &str) -> ! {
     eprintln!("run0-sudo-shim: {msg}");
@@ -46,11 +31,28 @@ impl Display for Error {
 
 impl std::error::Error for Error {}
 
-#[derive(Debug, Eq, PartialEq)]
 pub struct ShimResult {
-    pub cli: Vec<String>,
+    pub cli: Vec<OsString>,
+    pub post_run0_hook: Option<PostRunClosure>,
     stderr: String,
     stdout: String,
+}
+
+impl std::fmt::Debug for ShimResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ShimResult")
+            .field("cli", &self.cli)
+            .field("post_run0_hook", &self.post_run0_hook.is_some())
+            .field("stderr", &self.stderr)
+            .field("stdout", &self.stdout)
+            .finish()
+    }
+}
+
+impl PartialEq for ShimResult {
+    fn eq(&self, other: &Self) -> bool {
+        self.cli == other.cli && self.stderr == other.stderr && self.stdout == other.stdout
+    }
 }
 
 impl ShimResult {
@@ -59,15 +61,17 @@ impl ShimResult {
             cli: Vec::new(),
             stderr: String::new(),
             stdout: String::new(),
+            post_run0_hook: None,
         }
     }
 
     #[cfg(test)]
-    pub fn ok_from(cli: Vec<String>) -> Result<Self, Error> {
+    pub fn ok_from(cli: Vec<OsString>) -> Result<Self, Error> {
         Ok(Self {
             cli,
             stderr: String::new(),
             stdout: String::new(),
+            post_run0_hook: None,
         })
     }
     #[cfg(test)]
@@ -95,13 +99,15 @@ pub struct Run0Cli {
     cmd: clap::Command,
 }
 
+type PostRunClosure = Box<dyn FnOnce()>;
+
 impl Run0Cli {
     pub fn new(res: Result<ShimResult, Error>, cmd: clap::Command) -> Self {
         Self { res, cmd }
     }
 
     // CAN EXIT(1)
-    pub fn finalize(mut self) -> Vec<String> {
+    pub fn finalize(mut self) -> (Vec<OsString>, Option<PostRunClosure>) {
         let res = match self.res {
             Ok(res) => res,
             Err(e) => match e {
@@ -118,6 +124,6 @@ impl Run0Cli {
         if !res.stdout.is_empty() {
             println!("{}", res.stdout);
         }
-        res.cli
+        (res.cli, res.post_run0_hook)
     }
 }

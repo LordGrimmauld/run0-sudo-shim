@@ -1,4 +1,7 @@
-use std::{fs, io, path::PathBuf};
+use std::{
+    fs, io,
+    path::{Path, PathBuf},
+};
 
 // include *only* clap argument parsing, not runtime code
 // needed for man generation
@@ -7,13 +10,42 @@ mod args;
 #[path = "src/run0-sudo-shim/sudo/args.rs"]
 mod sudo;
 
-use clap::CommandFactory;
+#[cfg(feature = "sudoedit")]
+#[path = "src/run0-sudo-shim/sudoedit/args.rs"]
+mod sudoedit;
+
+#[cfg(feature = "run0-edit-daemon")]
+#[path = "src/run0-edit-daemon/args.rs"]
+mod run0_edit_daemon;
+
+use clap::{Command, CommandFactory};
 
 use clap_complete::{generate_to, shells::Shell};
 
 use crate::args::Cli;
 
-static COMMANDS: [(&str, &str); 1] = [("sudo", "8")];
+fn gen_for_command(
+    mut cmd: Command,
+    manpage_out_dir: &Path,
+    completion_out_dir: &Path,
+) -> io::Result<()> {
+    let name = cmd.get_name().to_owned();
+    let section = "8";
+
+    println!("Generating docs for command: {name}");
+
+    generate_to(Shell::Bash, &mut cmd, &name, completion_out_dir)?;
+    generate_to(Shell::Zsh, &mut cmd, &name, completion_out_dir)?;
+    generate_to(Shell::Fish, &mut cmd, &name, completion_out_dir)?;
+
+    let man = clap_mangen::Man::new(cmd).section(section);
+    let mut buffer: Vec<u8> = Default::default();
+    man.render(&mut buffer)?;
+    let filename = format!("{name}.{section}");
+    fs::write(manpage_out_dir.join(filename), buffer)?;
+
+    Ok(())
+}
 
 // inspired and adapted from bottom man page generation: https://github.com/ClementTsang/bottom/blob/d3c2223e5122079b04e72baf86f21397b35620ec/build.rs#L39-L77
 fn main() -> io::Result<()> {
@@ -25,21 +57,14 @@ fn main() -> io::Result<()> {
     fs::create_dir_all(&manpage_out_dir)?;
     fs::create_dir_all(&completion_out_dir)?;
 
-    let mut root = Cli::command();
+    for sub in Cli::command().get_subcommands() {
+        gen_for_command(sub.clone(), &manpage_out_dir, &completion_out_dir)?;
+    }
 
-    for &(name, section) in &COMMANDS {
-        let filename = format!("{name}.{section}");
-        println!("{name} -> {filename}");
-        if let Some(sub) = root.find_subcommand_mut(name) {
-            let man = clap_mangen::Man::new(sub.clone()).section(section);
-            let mut buffer: Vec<u8> = Default::default();
-            man.render(&mut buffer)?;
-            fs::write(manpage_out_dir.join(filename), buffer)?;
-
-            generate_to(Shell::Bash, sub, name, &completion_out_dir)?;
-            generate_to(Shell::Zsh, sub, name, &completion_out_dir)?;
-            generate_to(Shell::Fish, sub, name, &completion_out_dir)?;
-        }
+    #[cfg(feature = "run0-edit-daemon")]
+    {
+        let cmd = crate::run0_edit_daemon::Cli::command();
+        gen_for_command(cmd, &manpage_out_dir, &completion_out_dir)?;
     }
 
     Ok(())
